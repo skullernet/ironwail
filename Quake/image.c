@@ -278,7 +278,13 @@ static byte *Image_LoadPCX (FILE *f, int *width, int *height)
 	w = pcx.xmax - pcx.xmin + 1;
 	h = pcx.ymax - pcx.ymin + 1;
 
-	data = (byte *) Hunk_AllocNoFill ((w*h+1)*4); //+1 to allow reading padding byte on last line
+	if (Image_CheckSize(w, h))
+		Sys_Error ("'%s' has bad size", loadfilename);
+
+	if (pcx.bytes_per_line < w)
+		Sys_Error ("'%s' has bad bytes per line", loadfilename);
+
+	data = (byte *) Hunk_AllocNoFill (w*h*4);
 
 	//load palette
 	fseek (f, start + com_filesize - 768, SEEK_SET);
@@ -294,7 +300,7 @@ static byte *Image_LoadPCX (FILE *f, int *width, int *height)
 	{
 		p = data + y * w * 4;
 
-		for (x=0; x<(pcx.bytes_per_line); ) //read the extra padding byte if necessary
+		for (x=0; x<(pcx.bytes_per_line); ) //read the extra padding byte(s) if necessary
 		{
 			readbyte = Buf_GetC(buf);
 
@@ -306,13 +312,22 @@ static byte *Image_LoadPCX (FILE *f, int *width, int *height)
 			else
 				runlength = 1;
 
+			if (readbyte == EOF)
+				Sys_Error ("End of file in '%s'", loadfilename);
+
+			if (x + runlength > pcx.bytes_per_line)
+				Sys_Error ("Decompression overrun in '%s'", loadfilename);
+
 			while(runlength--)
 			{
-				p[0] = palette[readbyte*3];
-				p[1] = palette[readbyte*3+1];
-				p[2] = palette[readbyte*3+2];
-				p[3] = 255;
-				p += 4;
+				if (x < w)
+				{
+					p[0] = palette[readbyte*3];
+					p[1] = palette[readbyte*3+1];
+					p[2] = palette[readbyte*3+2];
+					p[3] = 255;
+					p += 4;
+				}
 				x++;
 			}
 		}
@@ -356,6 +371,11 @@ static byte *Image_LoadLMP (FILE *f, int *width, int *height)
 	}
 	qpic.width = LittleLong (qpic.width);
 	qpic.height = LittleLong (qpic.height);
+	if (Image_CheckSize(qpic.width, qpic.height))
+	{
+		fclose (f);
+		return NULL;
+	}
 
 	pix = qpic.width*qpic.height;
 

@@ -593,6 +593,9 @@ static void Mod_LoadTextures (lump_t *l)
 				Con_Warning ("Texture %s (%d x %d) is not 16 aligned\n", mt->name, mt->width, mt->height);
 		}
 
+		if ((uint64_t)mt->width * mt->height > INT_MAX / 4)
+			Host_Error ("Mod_LoadTextures: bad texture size");
+
 		pixels = mt->width*mt->height; // only copy the first mip, the rest are auto-generated
 		tx = (texture_t *) Hunk_AllocNameNoFill (sizeof(texture_t) +pixels, loadname );
 		// only clear the texture struct, not the pixel buffer following it

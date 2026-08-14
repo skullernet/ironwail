@@ -285,6 +285,7 @@ qpic_t *Draw_PicFromWad2 (const char *name, unsigned int texflags)
 	glpic_t	gl;
 	src_offset_t offset; //johnfitz
 	lumpinfo_t *info;
+	uint32_t expected;
 
 	//Spike -- added cachepic stuff here, to avoid glitches if the function is called multiple times with the same image.
 	for (pic=menu_cachepics, i=0 ; i<menu_numcachepics ; pic++, i++)
@@ -301,10 +302,29 @@ qpic_t *Draw_PicFromWad2 (const char *name, unsigned int texflags)
 		Con_SafePrintf ("W_GetLumpName: %s not found\n", name);
 		return pic_nul; //johnfitz
 	}
-	if (info->type != TYP_QPIC) {Con_SafePrintf ("Draw_PicFromWad: lump \"%s\" is not a qpic\n", name); return pic_nul;}
-	if ((size_t)info->size < sizeof(int)*2) {Con_SafePrintf ("Draw_PicFromWad: pic \"%s\" is too small for its qpic header (%u bytes)\n", name, info->size); return pic_nul;}
-	if ((size_t)info->size < sizeof(int)*2+p->width*p->height) {Con_SafePrintf ("Draw_PicFromWad: pic \"%s\" truncated (%u*%u requires %u at least bytes)\n", name, p->width,p->height, 8+p->width*p->height); return pic_nul;}
-	if ((size_t)info->size > sizeof(int)*2+p->width*p->height) Con_DPrintf ("Draw_PicFromWad: pic \"%s\" over-sized (%u*%u requires only %u bytes)\n", name, p->width,p->height, 8+p->width*p->height);
+	if (info->type != TYP_QPIC)
+	{
+		Con_SafePrintf ("Draw_PicFromWad: lump \"%s\" is not a qpic\n", name);
+		return pic_nul;
+	}
+	if (info->size < sizeof(uint32_t) * 2)
+	{
+		Con_SafePrintf ("Draw_PicFromWad: pic \"%s\" is too small for its qpic header (%u bytes)\n", name, info->size);
+		return pic_nul;
+	}
+	if (Image_CheckSize(p->width, p->height))
+	{
+		Con_SafePrintf ("Draw_PicFromWad: pic \"%s\" has bad size (%u*%u)\n", name, p->width, p->height);
+		return pic_nul;
+	}
+	expected = sizeof(uint32_t) * 2 + p->width * p->height;
+	if (info->size < expected)
+	{
+		Con_SafePrintf ("Draw_PicFromWad: pic \"%s\" truncated (%u*%u requires %u at least bytes)\n", name, p->width, p->height, expected);
+		return pic_nul;
+	}
+	if (info->size > expected)
+		Con_DPrintf ("Draw_PicFromWad: pic \"%s\" over-sized (%u*%u requires only %u bytes)\n", name, p->width, p->height, expected);
 
 	// load little ones into the scrap
 	if (Scrap_Compatible (texflags) && Scrap_AllocBlock (p->width, p->height, &x, &y))
@@ -357,6 +377,7 @@ qpic_t	*Draw_TryCachePic (const char *path, unsigned int texflags)
 	int			i, x, y;
 	qpic_t		*dat;
 	glpic_t		gl;
+	uint32_t	expected;
 
 	for (pic=menu_cachepics, i=0 ; i<menu_numcachepics ; pic++, i++)
 	{
@@ -374,7 +395,30 @@ qpic_t	*Draw_TryCachePic (const char *path, unsigned int texflags)
 	dat = (qpic_t *)COM_LoadMallocFile (path, NULL);
 	if (!dat)
 		return NULL;
+
+	if (com_filesize < sizeof(uint32_t) * 2)
+	{
+		Con_SafePrintf ("Draw_TryCachePic: pic \"%s\" is too small for its qpic header (%" SDL_PRIs64 " bytes)\n", path, com_filesize);
+		free (dat);
+		return NULL;
+	}
+
 	SwapPic (dat);
+	if (Image_CheckSize(dat->width, dat->height))
+	{
+		Con_SafePrintf ("Draw_TryCachePic: pic \"%s\" has bad size (%u*%u)\n", path, dat->width, dat->height);
+		free (dat);
+		return NULL;
+	}
+
+	expected = sizeof(uint32_t) * 2 + dat->width * dat->height;
+	if (com_filesize < expected)
+	{
+		Con_SafePrintf ("Draw_TryCachePic: pic \"%s\" truncated (%u*%u requires %u at least bytes)\n",
+						path, dat->width, dat->height, expected);
+		free (dat);
+		return NULL;
+	}
 
 	// HACK HACK HACK --- we need to keep this as a separate texture
 	// so that the menu configuration dialog can translate its colors

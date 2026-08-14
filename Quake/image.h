@@ -35,5 +35,11 @@ qboolean Image_WriteTGA (const char *name, byte *data, int width, int height, in
 qboolean Image_WritePNG (const char *name, byte *data, int width, int height, int bpp, qboolean upsidedown);
 qboolean Image_WriteJPG (const char *name, byte *data, int width, int height, int bpp, int quality, qboolean upsidedown);
 
+//returns true if image size is 0 or overflows int after expansion to RGBA
+static inline qboolean Image_CheckSize (uint32_t width, uint32_t height)
+{
+	return (uint64_t)width * height - 1 >= INT_MAX / 4;
+}
+
 #endif	/* GL_IMAGE_H */
 
