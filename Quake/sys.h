@@ -80,7 +80,7 @@ qfileofs_t Sys_FileOpenRead (const char *path, int *hndl);
 int Sys_FileOpenWrite (const char *path);
 
 void Sys_FileClose (int handle);
-void Sys_FileSeek (int handle, int position);
+int Sys_FileSeek (int handle, int position);
 int Sys_FileRead (int handle, void *dest, int count);
 int Sys_FileWrite (int handle,const void *data, int count);
 qboolean Sys_FileExists (const char *path);

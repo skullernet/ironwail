@@ -179,9 +179,9 @@ void Sys_FileClose (int handle)
 	sys_handles[handle] = NULL;
 }
 
-void Sys_FileSeek (int handle, int position)
+int Sys_FileSeek (int handle, int position)
 {
-	fseek (sys_handles[handle], position, SEEK_SET);
+	return fseek (sys_handles[handle], position, SEEK_SET);
 }
 
 int Sys_FileRead (int handle, void *dest, int count)
