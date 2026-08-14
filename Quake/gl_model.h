@@ -120,6 +120,11 @@ typedef struct
 	unsigned int	v[2];
 } medge_t;
 
+typedef struct {
+	unsigned int	e: 31;
+	unsigned int	v:  1;
+} msurfedge_t;
+
 typedef struct
 {
 	float		vecs[2][4];
@@ -476,7 +481,7 @@ typedef struct qmodel_s
 	msurface_t	*surfaces;
 
 	int			numsurfedges;
-	int			*surfedges;
+	msurfedge_t	*surfedges;
 
 	int			numclipnodes;
 	mclipnode_t	*clipnodes; //johnfitz -- was dclipnode_t
@@ -494,6 +499,8 @@ typedef struct qmodel_s
 
 	byte		*visdata;
 	byte		*lightdata;
+	int			numvisibility;
+	int			numlightdata;
 	char		*entities;
 
 	qboolean	litfile;

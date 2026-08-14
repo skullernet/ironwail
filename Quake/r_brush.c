@@ -617,7 +617,6 @@ void GL_BuildBModelVertexBuffer (void)
 			texture_t	*texture = m->textures[fa->texinfo->texnum];
 			glvert_t	*vert = &varray[varray_index];
 			float		texscalex, texscaley, useofs, lmofs;
-			medge_t		*r_pedge;
 			lightmap_t	*lm;
 
 			if (fa->flags & SURF_DRAWTILED)
@@ -656,19 +655,10 @@ void GL_BuildBModelVertexBuffer (void)
 			{
 				float	*vec;
 				float	s, t;
-				int		lindex;
+				msurfedge_t e;
 
-				lindex = m->surfedges[fa->firstedge + k];
-				if (lindex > 0)
-				{
-					r_pedge = &m->edges[lindex];
-					vec = m->vertexes[r_pedge->v[0]].position;
-				}
-				else
-				{
-					r_pedge = &m->edges[-lindex];
-					vec = m->vertexes[r_pedge->v[1]].position;
-				}
+				e = m->surfedges[fa->firstedge + k];
+				vec = m->vertexes[m->edges[e.e].v[e.v]].position;
 
 				s = DotProduct (vec, fa->texinfo->vecs[0]) + fa->texinfo->vecs[0][3] * useofs;
 				s *= texscalex;
