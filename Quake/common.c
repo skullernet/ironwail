@@ -2352,13 +2352,13 @@ static pack_t *COM_LoadPackFile (const char *packfile)
 	header.dirofs = LittleLong (header.dirofs);
 	header.dirlen = LittleLong (header.dirlen);
 
-	numpackfiles = header.dirlen / sizeof(dpackfile_t);
-
 	if (header.dirlen < 0 || header.dirofs < 0)
 	{
 		Sys_Error ("Invalid packfile %s (dirlen: %i, dirofs: %i)",
 					packfile, header.dirlen, header.dirofs);
 	}
+	numpackfiles = header.dirlen / sizeof(dpackfile_t);
+
 	if (!numpackfiles)
 	{
 		Sys_Printf ("WARNING: %s has no files, ignored\n", packfile);
@@ -2373,7 +2373,9 @@ static pack_t *COM_LoadPackFile (const char *packfile)
 
 	newfiles = (packfile_t *) Z_Malloc(numpackfiles * sizeof(packfile_t));
 
-	Sys_FileSeek (packhandle, header.dirofs);
+	if (Sys_FileSeek(packhandle, header.dirofs))
+		Sys_Error ("Error seeking %s", packfile);
+
 	if (Sys_FileRead(packhandle, info, header.dirlen) != header.dirlen)
 		Sys_Error ("Error reading %s", packfile);
 
@@ -2388,9 +2390,12 @@ static pack_t *COM_LoadPackFile (const char *packfile)
 	// parse the directory
 	for (i = 0; i < numpackfiles; i++)
 	{
+		info[i].name[sizeof(info[i].name) - 1] = 0;
 		q_strlcpy (newfiles[i].name, info[i].name, sizeof(newfiles[i].name));
 		newfiles[i].filepos = LittleLong(info[i].filepos);
 		newfiles[i].filelen = LittleLong(info[i].filelen);
+		if (newfiles[i].filepos < 0 || newfiles[i].filelen < 0)
+			Sys_Error ("Invalid entry in packfile %s", packfile);
 	}
 
 	pack = (pack_t *) Z_Malloc (sizeof (pack_t));
