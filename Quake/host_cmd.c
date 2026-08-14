@@ -564,6 +564,7 @@ typedef struct download_s
 
 	size_t			(*write_fn) (void *buffer, size_t size, size_t nmemb, void *stream);
 	void			*write_data;
+	long			max_size;
 
 	SDL_atomic_t	*abort;
 	int				response;
@@ -607,6 +608,7 @@ static qboolean Download (const char *url, download_t *download)
 	curl_easy_setopt (curl, CURLOPT_HTTPHEADER, header);
 	curl_easy_setopt (curl, CURLOPT_WRITEFUNCTION, download->write_fn);
 	curl_easy_setopt (curl, CURLOPT_WRITEDATA, download->write_data);
+	curl_easy_setopt (curl, CURLOPT_MAXFILESIZE, download->max_size);
 	curl_easy_setopt (curl, CURLOPT_USE_SSL, CURLUSESSL_ALL);
 	curl_easy_setopt (curl, CURLOPT_ACCEPT_ENCODING, "");
 	curl_easy_setopt (curl, CURLOPT_FOLLOWLOCATION, 1L);
@@ -887,6 +889,7 @@ static int Modlist_DownloadJSON (void *unused)
 	memset (&download, 0, sizeof (download));
 	download.write_fn		= WriteManifestChunk;
 	download.write_data		= &manifest;
+	download.max_size		= 16 * 1024 * 1024;	// 16 MiB limit for sanity
 	download.headers		= &accept;
 	download.num_headers	= 1;
 	download.abort			= &extramods_json_cancel;
