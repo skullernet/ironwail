@@ -51,15 +51,15 @@ typedef struct
 typedef struct
 {
 	char		identification[4];		// should be WAD2 or 2DAW
-	int			numlumps;
-	int			infotableofs;
+	uint32_t	numlumps;
+	uint32_t	infotableofs;
 } wadinfo_t;
 
 typedef struct
 {
-	int			filepos;
-	int			disksize;
-	int			size;					// uncompressed
+	uint32_t	filepos;
+	uint32_t	disksize;
+	uint32_t	size;					// uncompressed
 	char		type;
 	char		compression;
 	char		pad1, pad2;

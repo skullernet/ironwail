@@ -70,7 +70,7 @@ void W_LoadWadFile (void) //johnfitz -- filename is now hard-coded for honesty
 	lumpinfo_t		*lump_p;
 	wadinfo_t		*header;
 	int			i;
-	int			infotableofs;
+	uint32_t		numlumps, infotableofs;
 	const char		*filename = WADFILENAME;
 
 	//johnfitz -- modified to use malloc
@@ -85,20 +85,30 @@ void W_LoadWadFile (void) //johnfitz -- filename is now hard-coded for honesty
 			   "or use the -basedir command-line option to specify another directory.",
 			   filename, com_basedirs[0]);
 
+	if (com_filesize < sizeof(*header))
+		Sys_Error ("Wad file %s is too small", filename);
+
 	header = (wadinfo_t *)wad_base;
 
 	if (header->identification[0] != 'W' || header->identification[1] != 'A'
 	 || header->identification[2] != 'D' || header->identification[3] != '2')
 		Sys_Error ("Wad file %s doesn't have WAD2 id\n",filename);
 
-	wad_numlumps = LittleLong(header->numlumps);
+	numlumps = LittleLong(header->numlumps);
 	infotableofs = LittleLong(header->infotableofs);
+	if ((uint64_t)infotableofs + (uint64_t)numlumps * sizeof(lumpinfo_t) > com_filesize)
+		Sys_Error ("Wad file %s is corrupt", filename);
+
+	wad_numlumps = numlumps;
 	wad_lumps = (lumpinfo_t *)(wad_base + infotableofs);
 
 	for (i=0, lump_p = wad_lumps ; i<wad_numlumps ; i++,lump_p++)
 	{
 		lump_p->filepos = LittleLong(lump_p->filepos);
 		lump_p->size = LittleLong(lump_p->size);
+		if ((uint64_t)lump_p->filepos + lump_p->size > com_filesize)
+			Sys_Error ("Wad file %s is corrupt", filename);
+
 		W_CleanupName (lump_p->name, lump_p->name);	// CAUTION: in-place editing!!!
 		if (lump_p->type == TYP_QPIC)
 			SwapPic ( (qpic_t *)(wad_base + lump_p->filepos));
@@ -121,7 +131,7 @@ lumpinfo_t	*W_GetLumpinfo (const char *name)
 
 	for (lump_p=wad_lumps, i=0 ; i<wad_numlumps ; i++,lump_p++)
 	{
-		if (!strcmp(clean, lump_p->name))
+		if (!memcmp(clean, lump_p->name, 16))
 			return lump_p;
 	}
 
@@ -145,7 +155,7 @@ void *W_GetLumpNum (int num)
 {
 	lumpinfo_t	*lump;
 
-	if (num < 0 || num > wad_numlumps)
+	if (num < 0 || num >= wad_numlumps)
 		Sys_Error ("W_GetLumpNum: bad number: %i", num);
 
 	lump = wad_lumps + num;
