@@ -507,10 +507,10 @@ void Draw_LoadPics (void)
 	data = (byte *) W_GetLumpName ("conchars", &info);
 	if (!data)
 		Sys_Error ("Draw_LoadPics: couldn't load conchars");
-	if (info->disksize < 128*128)
+	if (info->size < 128*128)
 		Sys_Error ("Draw_LoadPics: truncated conchars");
 
-	custom_conchars = (COM_HashBlock (data, 128*218) != 0xc7e2a10a);
+	custom_conchars = (COM_HashBlock (data, 128*128) != 0x9d6f0ea8);
 
 	for (i = 0; i < 256; i++)
 	{
