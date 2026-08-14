@@ -2031,13 +2031,13 @@ static int COM_FindFile (const char *filename, int *handle, FILE **file,
 			{
 				com_filesize = Sys_FileOpenRead (netpath, &i);
 				*handle = i;
-				return com_filesize;
+				return q_min(com_filesize, INT_MAX);
 			}
 			else if (file)
 			{
 				*file = Sys_fopen (netpath, "rb");
 				com_filesize = (*file == NULL) ? -1 : COM_filelength (*file);
-				return com_filesize;
+				return q_min(com_filesize, INT_MAX);
 			}
 			else
 			{
@@ -2171,6 +2171,10 @@ byte *COM_LoadFile (const char *path, int usehunk, unsigned int *path_id)
 	if (h == -1)
 		return NULL;
 
+// len can be negative if filelength() fails
+	if (len < 0 || len == INT_MAX)
+		Sys_Error ("COM_LoadFile: not enough space for %s", path);
+
 // extract the filename base name for hunk tag
 	COM_FileBase (path, base, sizeof(base));
 
@@ -2214,7 +2218,7 @@ byte *COM_LoadMallocFile_TextMode_OSPath (const char *path, long *len_out)
 {
 	FILE	*f;
 	byte	*data;
-	long	len, actuallen;
+	qfileofs_t	len, actuallen;
 
 	// ericw -- this is used by Host_Loadgame_f. Translate CRLF to LF on load games,
 	// othewise multiline messages have a garbage character at the end of each line.
@@ -2225,7 +2229,7 @@ byte *COM_LoadMallocFile_TextMode_OSPath (const char *path, long *len_out)
 		return NULL;
 
 	len = COM_filelength (f);
-	if (len < 0)
+	if (len < 0 || len >= INT_MAX)
 	{
 		fclose (f);
 		return NULL;
