@@ -417,7 +417,7 @@ void Q_memset (void *dest, int fill, size_t count)
 	if ( (((uintptr_t)dest | count) & 3) == 0)
 	{
 		count >>= 2;
-		fill = fill | (fill<<8) | (fill<<16) | (fill<<24);
+		fill = fill | (fill<<8) | (fill<<16) | ((unsigned)fill<<24);
 		for (i = 0; i < count; i++)
 			((int *)dest)[i] = fill;
 	}

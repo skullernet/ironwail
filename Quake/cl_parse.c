@@ -479,7 +479,7 @@ void CL_ParseUpdate (int bits)
 		if (bits & U_EXTEND1)
 			bits |= MSG_ReadByte() << 16;
 		if (bits & U_EXTEND2)
-			bits |= MSG_ReadByte() << 24;
+			bits |= (unsigned)MSG_ReadByte() << 24;
 	}
 	//johnfitz
 
@@ -718,7 +718,7 @@ void CL_ParseClientdata (void)
 	if (bits & SU_EXTEND1)
 		bits |= (MSG_ReadByte() << 16);
 	if (bits & SU_EXTEND2)
-		bits |= (MSG_ReadByte() << 24);
+		bits |= ((unsigned)MSG_ReadByte() << 24);
 	//johnfitz
 
 	if (bits & SU_VIEWHEIGHT)
@@ -765,7 +765,7 @@ void CL_ParseClientdata (void)
 	{	// set flash times
 		Sbar_Changed ();
 		for (j = 0; j < 32; j++)
-			if ( (i & (1<<j)) && !(cl.items & (1<<j)))
+			if ( (i & (1U<<j)) && !(cl.items & (1U<<j)))
 				cl.item_gettime[j] = cl.time;
 		cl.items = i;
 		cl.stats[STAT_ITEMS] = i;
@@ -835,9 +835,10 @@ void CL_ParseClientdata (void)
 	}
 	else
 	{
-		if (cl.stats[STAT_ACTIVEWEAPON] != (1<<i))
+		i &= 31;
+		if (cl.stats[STAT_ACTIVEWEAPON] != (1U<<i))
 		{
-			cl.stats[STAT_ACTIVEWEAPON] = (1<<i);
+			cl.stats[STAT_ACTIVEWEAPON] = (1U<<i);
 			Sbar_Changed ();
 		}
 	}

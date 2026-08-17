@@ -1038,9 +1038,9 @@ void SV_WriteClientdataToMessage (edict_t *ent, sizebuf_t *msg)
 	val = GetEdictFieldValueByName(ent, "items2");
 
 	if (val)
-		items = (int)ent->v.items | ((int)val->_float << 23);
+		items = (int)ent->v.items | ((unsigned)val->_float << 23);
 	else
-		items = (int)ent->v.items | ((int)pr_global_struct->serverflags << 28);
+		items = (int)ent->v.items | ((unsigned)pr_global_struct->serverflags << 28);
 
 	bits |= SU_ITEMS;
 
@@ -1133,7 +1133,7 @@ void SV_WriteClientdataToMessage (edict_t *ent, sizebuf_t *msg)
 	{
 		for(i=0;i<32;i++)
 		{
-			if ( ((int)ent->v.weapon) & (1<<i) )
+			if ( ((int)ent->v.weapon) & (1U<<i) )
 			{
 				MSG_WriteByte (msg, i);
 				break;

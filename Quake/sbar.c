@@ -1241,12 +1241,12 @@ static void Sbar_DrawSigils (void)
 	int		i, x, y;
 	float	t;
 
-	if (rogue || !(cl.items & (15<<28)) || cl.stats[STAT_HEALTH] <= 0)
+	if (rogue || !(cl.items & (15U<<28)) || cl.stats[STAT_HEALTH] <= 0)
 		return;
 
 	t = -FLT_MAX;
 	for (i = 0; i < 4; i++)
-		if (cl.items & (1<<(28+i)))
+		if (cl.items & (1U<<(28+i)))
 			t = q_max (t, cl.item_gettime[28+i]);
 	t = q_max (t, cl.spawntime);
 
@@ -1266,7 +1266,7 @@ static void Sbar_DrawSigils (void)
 
 	for (i = 0; i < 4; i++)
 	{
-		if (cl.items & (1<<(28+i)))
+		if (cl.items & (1U<<(28+i)))
 		{
 			t = (cl.time - q_max (cl.item_gettime[28+i], cl.spawntime));
 			t = q_max (t, 0.f);
