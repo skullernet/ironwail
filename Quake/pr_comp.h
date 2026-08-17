@@ -136,15 +136,15 @@ typedef enum opcode_t
 
 typedef struct statement_s
 {
-	unsigned short	op;
-	short	a, b, c;
+	uint16_t	op;
+	uint16_t	a, b, c;
 } dstatement_t;
 
 typedef struct
 {
-	unsigned short	type;	// if DEF_SAVEGLOBAL bit is set
+	uint16_t	type;	// if DEF_SAVEGLOBAL bit is set
 				// the variable needs to be saved in savegames
-	unsigned short	ofs;
+	uint16_t	ofs;
 	int		s_name;
 } ddef_t;
 
@@ -155,15 +155,15 @@ typedef struct
 typedef struct
 {
 	int		first_statement;	// negative numbers are builtins
-	int		parm_start;
-	int		locals;			// total ints of parms + locals
+	uint32_t	parm_start;
+	uint32_t	locals;			// total ints of parms + locals
 
 	int		profile;		// runtime
 
 	int		s_name;
 	int		s_file;			// source file defined in
 
-	int		numparms;
+	uint32_t	numparms;
 	byte	parm_size[MAX_PARMS];
 } dfunction_t;
 
@@ -171,28 +171,28 @@ typedef struct
 #define	PROG_VERSION	6
 typedef struct
 {
-	int		version;
-	int		crc;		// check of header file
+	uint32_t	version;
+	uint32_t	crc;		// check of header file
 
-	int		ofs_statements;
-	int		numstatements;	// statement 0 is an error
+	uint32_t	ofs_statements;
+	uint32_t	numstatements;	// statement 0 is an error
 
-	int		ofs_globaldefs;
-	int		numglobaldefs;
+	uint32_t	ofs_globaldefs;
+	uint32_t	numglobaldefs;
 
-	int		ofs_fielddefs;
-	int		numfielddefs;
+	uint32_t	ofs_fielddefs;
+	uint32_t	numfielddefs;
 
-	int		ofs_functions;
-	int		numfunctions;	// function 0 is an empty
+	uint32_t	ofs_functions;
+	uint32_t	numfunctions;	// function 0 is an empty
 
-	int		ofs_strings;
-	int		numstrings;	// first string is a null string
+	uint32_t	ofs_strings;
+	uint32_t	numstrings;	// first string is a null string
 
-	int		ofs_globals;
-	int		numglobals;
+	uint32_t	ofs_globals;
+	uint32_t	numglobals;
 
-	int		entityfields;
+	uint32_t	entityfields;
 } dprograms_t;
 
 #endif	/* __PR_COMP_H */

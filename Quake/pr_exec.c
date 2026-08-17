@@ -139,6 +139,33 @@ const char *PR_GlobalStringNoContents (int ofs);
 
 //=============================================================================
 
+void PR_ValidateStatement (dstatement_t *s)
+{
+	int i = s - qcvm->statements;
+
+	if (s->op >= Q_COUNTOF(pr_opnames))
+		Host_Error ("PR_ValidateStatement: unknown opcode");
+
+	switch (s->op) {
+	case OP_IF:
+	case OP_IFNOT:
+		if ((int16_t)s->b < -i || (int16_t)s->b >= (int32_t)qcvm->progs->numstatements - i)
+			Host_Error ("PR_ValidateStatement: bad branch target");
+		break;
+	case OP_GOTO:
+		if ((int16_t)s->a < -i || (int16_t)s->a >= (int32_t)qcvm->progs->numstatements - i)
+			Host_Error ("PR_ValidateStatement: bad goto target");
+		break;
+	default:
+		// FIXME: vectors?
+		if (s->a >= qcvm->progs->numglobals ||
+			s->b >= qcvm->progs->numglobals ||
+			s->c >= qcvm->progs->numglobals)
+			Host_Error ("PR_ValidateStatement: bad operands");
+		break;
+	}
+}
+
 /*
 =================
 PR_PrintStatement
@@ -292,11 +319,11 @@ static int PR_EnterFunction (dfunction_t *f)
 {
 	int	i, j, c, o;
 
+	if (qcvm->depth >= MAX_STACK_DEPTH - 1)
+		PR_RunError("stack overflow");
 	qcvm->stack[qcvm->depth].s = qcvm->xstatement;
 	qcvm->stack[qcvm->depth].f = qcvm->xfunction;
 	qcvm->depth++;
-	if (qcvm->depth >= MAX_STACK_DEPTH)
-		PR_RunError("stack overflow");
 
 	// save off any locals that the new function steps on
 	c = f->locals;
@@ -304,7 +331,7 @@ static int PR_EnterFunction (dfunction_t *f)
 		PR_RunError("PR_ExecuteProgram: locals stack overflow");
 
 	for (i = 0; i < c ; i++)
-		qcvm->localstack[qcvm->localstack_used + i] = ((int *)qcvm->globals)[f->parm_start + i];
+		qcvm->localstack[qcvm->localstack_used + i] = qcvm->globals[f->parm_start + i];
 	qcvm->localstack_used += c;
 
 	// copy parameters
@@ -313,7 +340,7 @@ static int PR_EnterFunction (dfunction_t *f)
 	{
 		for (j = 0; j < f->parm_size[i]; j++)
 		{
-			((int *)qcvm->globals)[o] = ((int *)qcvm->globals)[OFS_PARM0 + i*3 + j];
+			qcvm->globals[o] = qcvm->globals[OFS_PARM0 + i*3 + j];
 			o++;
 		}
 	}
@@ -341,7 +368,7 @@ static int PR_LeaveFunction (void)
 		PR_RunError("PR_ExecuteProgram: locals stack underflow");
 
 	for (i = 0; i < c; i++)
-		((int *)qcvm->globals)[qcvm->xfunction->parm_start + i] = qcvm->localstack[qcvm->localstack_used + i];
+		qcvm->globals[qcvm->xfunction->parm_start + i] = qcvm->localstack[qcvm->localstack_used + i];
 
 	// up stack
 	qcvm->depth--;
@@ -388,20 +415,21 @@ PR_ExecuteProgram
 The interpretation main loop
 ====================
 */
-#define OPA ((eval_t *)&qcvm->globals[(unsigned short)st->a])
-#define OPB ((eval_t *)&qcvm->globals[(unsigned short)st->b])
-#define OPC ((eval_t *)&qcvm->globals[(unsigned short)st->c])
+#define OPA (&qcvm->globals[st->a])
+#define OPB (&qcvm->globals[st->b])
+#define OPC (&qcvm->globals[st->c])
 
 void PR_ExecuteProgram (func_t fnum)
 {
 	eval_t		*ptr;
-	dstatement_t	*st;
+	dstatement_t	*st, *stend;
 	dfunction_t	*f, *newf;
 	int profile, startprofile;
 	edict_t		*ed;
 	int		exitdepth;
+	int		numfields;
 
-	if (!fnum || fnum >= qcvm->progs->numfunctions)
+	if (fnum <= 0 || fnum >= qcvm->progs->numfunctions)
 	{
 		if (pr_global_struct->self)
 			ED_Print (PROG_TO_EDICT(pr_global_struct->self));
@@ -418,8 +446,14 @@ void PR_ExecuteProgram (func_t fnum)
 	st = &qcvm->statements[PR_EnterFunction(f)];
 	startprofile = profile = 0;
 
+	stend = qcvm->statements + qcvm->progs->numstatements;
+	numfields = qcvm->progs->entityfields;
+
     while (1)
     {
+	if (st >= stend)
+		PR_RunError("statement out of bounds");
+
 	st++;	/* next statement */
 
 	if (++profile > 0x1000000) /* was 100000 */
@@ -437,37 +471,37 @@ void PR_ExecuteProgram (func_t fnum)
 		OPC->_float = OPA->_float + OPB->_float;
 		break;
 	case OP_ADD_V:
-		OPC->vector[0] = OPA->vector[0] + OPB->vector[0];
-		OPC->vector[1] = OPA->vector[1] + OPB->vector[1];
-		OPC->vector[2] = OPA->vector[2] + OPB->vector[2];
+		OPC[0]._float = OPA[0]._float + OPB[0]._float;
+		OPC[1]._float = OPA[1]._float + OPB[1]._float;
+		OPC[2]._float = OPA[2]._float + OPB[2]._float;
 		break;
 
 	case OP_SUB_F:
 		OPC->_float = OPA->_float - OPB->_float;
 		break;
 	case OP_SUB_V:
-		OPC->vector[0] = OPA->vector[0] - OPB->vector[0];
-		OPC->vector[1] = OPA->vector[1] - OPB->vector[1];
-		OPC->vector[2] = OPA->vector[2] - OPB->vector[2];
+		OPC[0]._float = OPA[0]._float - OPB[0]._float;
+		OPC[1]._float = OPA[1]._float - OPB[1]._float;
+		OPC[2]._float = OPA[2]._float - OPB[2]._float;
 		break;
 
 	case OP_MUL_F:
 		OPC->_float = OPA->_float * OPB->_float;
 		break;
 	case OP_MUL_V:
-		OPC->_float = OPA->vector[0] * OPB->vector[0] +
-			      OPA->vector[1] * OPB->vector[1] +
-			      OPA->vector[2] * OPB->vector[2];
+		OPC->_float = OPA[0]._float * OPB[0]._float +
+			      OPA[1]._float * OPB[1]._float +
+			      OPA[2]._float * OPB[2]._float;
 		break;
 	case OP_MUL_FV:
-		OPC->vector[0] = OPA->_float * OPB->vector[0];
-		OPC->vector[1] = OPA->_float * OPB->vector[1];
-		OPC->vector[2] = OPA->_float * OPB->vector[2];
+		OPC[0]._float = OPA->_float * OPB[0]._float;
+		OPC[1]._float = OPA->_float * OPB[1]._float;
+		OPC[2]._float = OPA->_float * OPB[2]._float;
 		break;
 	case OP_MUL_VF:
-		OPC->vector[0] = OPB->_float * OPA->vector[0];
-		OPC->vector[1] = OPB->_float * OPA->vector[1];
-		OPC->vector[2] = OPB->_float * OPA->vector[2];
+		OPC[0]._float = OPB->_float * OPA[0]._float;
+		OPC[1]._float = OPB->_float * OPA[1]._float;
+		OPC[2]._float = OPB->_float * OPA[2]._float;
 		break;
 
 	case OP_DIV_F:
@@ -505,7 +539,7 @@ void PR_ExecuteProgram (func_t fnum)
 		OPC->_float = !OPA->_float;
 		break;
 	case OP_NOT_V:
-		OPC->_float = !OPA->vector[0] && !OPA->vector[1] && !OPA->vector[2];
+		OPC->_float = !OPA[0]._float && !OPA[1]._float && !OPA[2]._float;
 		break;
 	case OP_NOT_S:
 		OPC->_float = !OPA->string || !*PR_GetString(OPA->string);
@@ -521,9 +555,9 @@ void PR_ExecuteProgram (func_t fnum)
 		OPC->_float = OPA->_float == OPB->_float;
 		break;
 	case OP_EQ_V:
-		OPC->_float = (OPA->vector[0] == OPB->vector[0]) &&
-			      (OPA->vector[1] == OPB->vector[1]) &&
-			      (OPA->vector[2] == OPB->vector[2]);
+		OPC->_float = (OPA[0]._float == OPB[0]._float) &&
+			      (OPA[1]._float == OPB[1]._float) &&
+			      (OPA[2]._float == OPB[2]._float);
 		break;
 	case OP_EQ_S:
 		OPC->_float = !strcmp(PR_GetString(OPA->string), PR_GetString(OPB->string));
@@ -539,9 +573,9 @@ void PR_ExecuteProgram (func_t fnum)
 		OPC->_float = OPA->_float != OPB->_float;
 		break;
 	case OP_NE_V:
-		OPC->_float = (OPA->vector[0] != OPB->vector[0]) ||
-			      (OPA->vector[1] != OPB->vector[1]) ||
-			      (OPA->vector[2] != OPB->vector[2]);
+		OPC->_float = (OPA[0]._float != OPB[0]._float) ||
+			      (OPA[1]._float != OPB[1]._float) ||
+			      (OPA[2]._float != OPB[2]._float);
 		break;
 	case OP_NE_S:
 		OPC->_float = strcmp(PR_GetString(OPA->string), PR_GetString(OPB->string));
@@ -561,9 +595,9 @@ void PR_ExecuteProgram (func_t fnum)
 		OPB->_int = OPA->_int;
 		break;
 	case OP_STORE_V:
-		OPB->vector[0] = OPA->vector[0];
-		OPB->vector[1] = OPA->vector[1];
-		OPB->vector[2] = OPA->vector[2];
+		OPB[0]._float = OPA[0]._float;
+		OPB[1]._float = OPA[1]._float;
+		OPB[2]._float = OPA[2]._float;
 		break;
 
 	case OP_STOREP_F:
@@ -571,27 +605,41 @@ void PR_ExecuteProgram (func_t fnum)
 	case OP_STOREP_FLD:	// integers
 	case OP_STOREP_S:
 	case OP_STOREP_FNC:	// pointers
-		ptr = (eval_t *)((byte *)qcvm->edicts + OPB->_int);
-		ptr->_int = OPA->_int;
-		break;
-	case OP_STOREP_V:
-		ptr = (eval_t *)((byte *)qcvm->edicts + OPB->_int);
-		ptr->vector[0] = OPA->vector[0];
-		ptr->vector[1] = OPA->vector[1];
-		ptr->vector[2] = OPA->vector[2];
-		break;
-
-	case OP_ADDRESS:
-		ed = PROG_TO_EDICT(OPA->edict);
-#ifdef PARANOID
-		NUM_FOR_EDICT(ed);	// Make sure it's in range
-#endif
-		if (ed == (edict_t *)qcvm->edicts && sv.state == ss_active)
+		ed = PROG_TO_EDICT(OPB->pointer.edict);
+		if (ed == qcvm->edicts && sv.state == ss_active)
 		{
 			qcvm->xstatement = st - qcvm->statements;
 			PR_RunError("assignment to world entity");
 		}
-		OPC->_int = (byte *)((int *)&ed->v + OPB->_int) - (byte *)qcvm->edicts;
+		if (OPB->pointer.ofs >= numfields)
+		{
+			qcvm->xstatement = st - qcvm->statements;
+			PR_RunError("Bad entity field");
+		}
+		ptr = &ed->e[OPB->pointer.ofs];
+		ptr->_int = OPA->_int;
+		break;
+	case OP_STOREP_V:
+		ed = PROG_TO_EDICT(OPB->pointer.edict);
+		if (ed == qcvm->edicts && sv.state == ss_active)
+		{
+			qcvm->xstatement = st - qcvm->statements;
+			PR_RunError("assignment to world entity");
+		}
+		if (OPB->pointer.ofs >= numfields - 2)
+		{
+			qcvm->xstatement = st - qcvm->statements;
+			PR_RunError("Bad entity field");
+		}
+		ptr = &ed->e[OPB->pointer.ofs];
+		ptr[0]._float = OPA[0]._float;
+		ptr[1]._float = OPA[1]._float;
+		ptr[2]._float = OPA[2]._float;
+		break;
+
+	case OP_ADDRESS:
+		OPC->pointer.edict = OPA->edict;
+		OPC->pointer.ofs = OPB->uint;
 		break;
 
 	case OP_LOAD_F:
@@ -603,7 +651,12 @@ void PR_ExecuteProgram (func_t fnum)
 #ifdef PARANOID
 		NUM_FOR_EDICT(ed);	// Make sure it's in range
 #endif
-		OPC->_int = ((eval_t *)((int *)&ed->v + OPB->_int))->_int;
+		if (OPB->uint >= numfields)
+		{
+			qcvm->xstatement = st - qcvm->statements;
+			PR_RunError("Bad entity field");
+		}
+		OPC->_int = ed->e[OPB->uint]._int;
 		break;
 
 	case OP_LOAD_V:
@@ -611,24 +664,29 @@ void PR_ExecuteProgram (func_t fnum)
 #ifdef PARANOID
 		NUM_FOR_EDICT(ed);	// Make sure it's in range
 #endif
-		ptr = (eval_t *)((int *)&ed->v + OPB->_int);
-		OPC->vector[0] = ptr->vector[0];
-		OPC->vector[1] = ptr->vector[1];
-		OPC->vector[2] = ptr->vector[2];
+		if (OPB->uint >= numfields - 2)
+		{
+			qcvm->xstatement = st - qcvm->statements;
+			PR_RunError("Bad entity field");
+		}
+		ptr = &ed->e[OPB->uint];
+		OPC[0]._float = ptr[0]._float;
+		OPC[1]._float = ptr[1]._float;
+		OPC[2]._float = ptr[2]._float;
 		break;
 
 	case OP_IFNOT:
 		if (!OPA->_int)
-			st += st->b - 1;	/* -1 to offset the st++ */
+			st += (int16_t)st->b - 1;	/* -1 to offset the st++ */
 		break;
 
 	case OP_IF:
 		if (OPA->_int)
-			st += st->b - 1;	/* -1 to offset the st++ */
+			st += (int16_t)st->b - 1;	/* -1 to offset the st++ */
 		break;
 
 	case OP_GOTO:
-		st += st->a - 1;		/* -1 to offset the st++ */
+		st += (int16_t)st->a - 1;		/* -1 to offset the st++ */
 		break;
 
 	case OP_CALL0:
@@ -644,7 +702,7 @@ void PR_ExecuteProgram (func_t fnum)
 		startprofile = profile;
 		qcvm->xstatement = st - qcvm->statements;
 		qcvm->argc = st->op - OP_CALL0;
-		if (!OPA->function)
+		if (OPA->function <= 0 || OPA->function >= qcvm->progs->numfunctions)
 			PR_RunError("NULL function");
 		newf = &qcvm->functions[OPA->function];
 		if (newf->first_statement < 0)
@@ -665,9 +723,9 @@ void PR_ExecuteProgram (func_t fnum)
 		qcvm->xfunction->profile += profile - startprofile;
 		startprofile = profile;
 		qcvm->xstatement = st - qcvm->statements;
-		qcvm->globals[OFS_RETURN] = qcvm->globals[(unsigned short)st->a];
-		qcvm->globals[OFS_RETURN + 1] = qcvm->globals[(unsigned short)st->a + 1];
-		qcvm->globals[OFS_RETURN + 2] = qcvm->globals[(unsigned short)st->a + 2];
+		qcvm->globals[OFS_RETURN] = qcvm->globals[st->a];
+		qcvm->globals[OFS_RETURN + 1] = qcvm->globals[st->a + 1];
+		qcvm->globals[OFS_RETURN + 2] = qcvm->globals[st->a + 2];
 		st = &qcvm->statements[PR_LeaveFunction()];
 		if (qcvm->depth == exitdepth)
 		{ // Done

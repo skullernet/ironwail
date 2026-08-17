@@ -38,11 +38,17 @@ typedef union eval_s
 {
 	string_t	string;
 	float		_float;
-	float		vector[3];
 	func_t		function;
 	int		_int;
+	unsigned	uint;
 	int		edict;
+	struct {
+		uint16_t edict;
+		uint16_t ofs;
+	} pointer;
 } eval_t;
+
+COMPILE_TIME_ASSERT(eval_t, sizeof(eval_t) == 4);
 
 #define	MAX_ENT_LEAFS	32
 typedef struct edict_s
@@ -67,7 +73,10 @@ typedef struct edict_s
 	showbboxflags_t		showbboxflags;		/* highlighted entity link types */
 
 	float		freetime;		/* sv.time when the object was freed */
-	entvars_t	v;			/* C exported fields from progs */
+	union {
+		entvars_t	v;		/* C exported fields from progs */
+		eval_t		e[sizeof(entvars_t) / 4];
+	};
 
 	/* other fields from progs come immediately after */
 } edict_t;
@@ -205,7 +214,7 @@ typedef struct qcvm_s
 	dprograms_t		*progs;
 	dfunction_t		*functions;
 	dstatement_t	*statements;
-	float			*globals;	/* same as pr_global_struct */
+	eval_t			*globals;	/* same as pr_global_struct */
 	ddef_t			*fielddefs;	//yay reflection.
 
 	int				edict_size;	/* in bytes */
@@ -255,7 +264,7 @@ typedef struct qcvm_s
 	int				depth;
 
 #define	LOCALSTACK_SIZE		16384 /* was 2048*/
-	int				localstack[LOCALSTACK_SIZE];
+	eval_t				localstack[LOCALSTACK_SIZE];
 	int				localstack_used;
 
 	//originally part of the sv_state_t struct
@@ -295,7 +304,7 @@ typedef struct savedata_s
 	const char		**knownstrings;
 	int				num_edicts;
 	edict_t			*edicts;
-	float			*globals;
+	eval_t			*globals;
 	const char		*lightstyles[MAX_LIGHTSTYLES];
 	byte			*buffer;
 	int				buffersize;
@@ -312,6 +321,8 @@ void PR_PushQCVM(qcvm_t *newvm, qcvm_t **oldvm);
 void PR_PopQCVM(qcvm_t *oldvm);
 
 void PR_Init (void);
+
+void PR_ValidateStatement (dstatement_t *s);
 
 void PR_ExecuteProgram (func_t fnum);
 void PR_ClearProgs(qcvm_t *vm);
@@ -350,28 +361,35 @@ void ED_LoadFromFile (const char *data);
 */
 edict_t *EDICT_NUM(int);
 int NUM_FOR_EDICT(edict_t*);
+edict_t *SAVE_EDICT_NUM(savedata_t *save, int n);
 int SAVE_NUM_FOR_EDICT (savedata_t *save, edict_t *e);
 
 #define	NEXT_EDICT(e)		((edict_t *)( (byte *)e + qcvm->edict_size))
 
+#if 1
+#define EDICT_TO_PROG(e)	NUM_FOR_EDICT(e)
+#define PROG_TO_EDICT(e)	EDICT_NUM(e)
+#define SAVE_PROG_TO_EDICT(s, e)	SAVE_EDICT_NUM(s, e)
+#else
 #define	EDICT_TO_PROG(e)	(int)((byte *)e - (byte *)qcvm->edicts)
 #define PROG_TO_EDICT(e)	((edict_t *)((byte *)qcvm->edicts + e))
 #define SAVE_PROG_TO_EDICT(s, e)	((edict_t *)((byte *)s->edicts + e))
+#endif
 
-#define	G_FLOAT(o)		(qcvm->globals[o])
-#define	G_INT(o)		(*(int *)&qcvm->globals[o])
-#define	G_EDICT(o)		((edict_t *)((byte *)qcvm->edicts+ *(int *)&qcvm->globals[o]))
-#define G_EDICTNUM(o)		NUM_FOR_EDICT(G_EDICT(o))
-#define	G_VECTOR(o)		(&qcvm->globals[o])
-#define	G_STRING(o)		(PR_GetString(*(string_t *)&qcvm->globals[o]))
-#define	G_FUNCTION(o)		(*(func_t *)&qcvm->globals[o])
+#define	G_FLOAT(o)		(qcvm->globals[o]._float)
+#define	G_INT(o)		(qcvm->globals[o]._int)
+#define	G_EDICT(o)		PROG_TO_EDICT(qcvm->globals[o].edict)
+#define	G_EDICTNUM(o)		NUM_FOR_EDICT(G_EDICT(o))
+#define	G_VECTOR(o)		(&qcvm->globals[o]._float)
+#define	G_STRING(o)		PR_GetString(qcvm->globals[o].string)
+#define	G_FUNCTION(o)		(qcvm->globals[o].func)
 
 #define G_VECTORSET(r,x,y,z) do{G_FLOAT((r)+0) = x; G_FLOAT((r)+1) = y;G_FLOAT((r)+2) = z;}while(0)
 
-#define	E_FLOAT(e,o)		(((float*)&e->v)[o])
-#define	E_INT(e,o)		(*(int *)&((float*)&e->v)[o])
-#define	E_VECTOR(e,o)		(&((float*)&e->v)[o])
-#define	E_STRING(e,o)		(PR_GetString(*(string_t *)&((float*)&e->v)[o]))
+#define	E_FLOAT(ed,o)		((ed)->e[o]._float)
+#define	E_INT(ed,o)		((ed)->e[o]._int)
+#define	E_VECTOR(ed,o)		(&(ed)->e[o]._float)
+#define	E_STRING(ed,o)		PR_GetString((ed)->e[o].string)
 
 #define NUM_TYPE_SIZES 8
 extern const int	type_size[NUM_TYPE_SIZES];

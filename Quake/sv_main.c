@@ -80,9 +80,9 @@ void SV_CalcStats(client_t *client, int *statsi, float *statsf, const char **sta
 			statsf[sv.customstats[i].idx] = eval->_float;
 			break;
 		case ev_vector:
-			statsf[sv.customstats[i].idx+0] = eval->vector[0];
-			statsf[sv.customstats[i].idx+1] = eval->vector[1];
-			statsf[sv.customstats[i].idx+2] = eval->vector[2];
+			statsf[sv.customstats[i].idx+0] = eval[0]._float;
+			statsf[sv.customstats[i].idx+1] = eval[1]._float;
+			statsf[sv.customstats[i].idx+2] = eval[2]._float;
 			break;
 		case ev_string:		//not supported in this build... send with svcfte_updatestatstring on change, which is annoying.
 			statss[sv.customstats[i].idx] = PR_GetString(eval->string);

@@ -37,7 +37,7 @@ const int type_size[NUM_TYPE_SIZES] = {
 };
 
 static ddef_t	*ED_FieldAtOfs (int ofs);
-static qboolean	ED_ParseEpair (void *base, ddef_t *key, const char *s, qboolean zoned);
+static qboolean	ED_ParseEpair (eval_t *base, ddef_t *key, const char *s, qboolean zoned);
 
 cvar_t	nomonsters = {"nomonsters", "0", CVAR_NONE};
 cvar_t	gamecfg = {"gamecfg", "0", CVAR_NONE};
@@ -396,7 +396,7 @@ eval_t *GetEdictFieldValue(edict_t *ed, int fldofs)
 	if (fldofs < 0)
 		return NULL;
 
-	return (eval_t *)((char *)&ed->v + fldofs*4);
+	return &ed->e[fldofs];
 }
 
 /*
@@ -417,6 +417,18 @@ PR_FloatFormat
 static const char *PR_FloatFormat (float f)
 {
 	return fabs (f - round (f)) < 0.05f ? "% 5.0f  " : "% 7.1f";
+}
+
+/*
+============
+PR_GetFunction
+============
+*/
+static dfunction_t *PR_GetFunction(func_t f)
+{
+	if (f <= 0 || f >= qcvm->progs->numfunctions)
+		return NULL;
+	return qcvm->functions + f;
 }
 
 /*
@@ -449,12 +461,18 @@ static const char *PR_ValueString (int type, eval_t *val)
 		q_snprintf (line, sizeof(line), *str ? "entity %i (%s)" : "entity %i", NUM_FOR_EDICT(ed), PR_GetString(ed->v.classname));
 		break;
 	case ev_function:
-		f = qcvm->functions + val->function;
-		q_snprintf (line, sizeof(line), "%s()", PR_GetString(f->s_name));
+		f = PR_GetFunction(val->function);
+		if (f)
+			q_snprintf (line, sizeof(line), "%s()", PR_GetString(f->s_name));
+		else
+			q_snprintf (line, sizeof(line), "bad function %i", val->function);
 		break;
 	case ev_field:
 		def = ED_FieldAtOfs ( val->_int );
-		q_snprintf (line, sizeof(line), ".%s", PR_GetString(def->s_name));
+		if (def)
+			q_snprintf (line, sizeof(line), ".%s", PR_GetString(def->s_name));
+		else
+			q_snprintf (line, sizeof(line), "bad field %i", val->_int);
 		break;
 	case ev_void:
 		q_snprintf (line, sizeof(line), "void");
@@ -465,8 +483,8 @@ static const char *PR_ValueString (int type, eval_t *val)
 		q_snprintf (line, sizeof(line), fmt, val->_float);
 		break;
 	case ev_vector:
-		q_snprintf (fmt, sizeof(fmt), "'%s %s %s'", PR_FloatFormat (val->vector[0]), PR_FloatFormat (val->vector[1]), PR_FloatFormat (val->vector[2]));
-		q_snprintf (line, sizeof(line), fmt, val->vector[0], val->vector[1], val->vector[2]);
+		q_snprintf (fmt, sizeof(fmt), "'%s %s %s'", PR_FloatFormat (val[0]._float), PR_FloatFormat (val[1]._float), PR_FloatFormat (val[2]._float));
+		q_snprintf (line, sizeof(line), fmt, val[0]._float, val[1]._float, val[2]._float);
 		break;
 	case ev_pointer:
 		q_snprintf (line, sizeof(line), "pointer");
@@ -505,12 +523,18 @@ static const char *PR_UglyValueString (int type, eval_t *val)
 		q_snprintf (line, sizeof(line), "%i", NUM_FOR_EDICT(PROG_TO_EDICT(val->edict)));
 		break;
 	case ev_function:
-		f = qcvm->functions + val->function;
-		q_snprintf (line, sizeof(line), "%s", PR_GetString(f->s_name));
+		f = PR_GetFunction(val->function);
+		if (f)
+			q_snprintf (line, sizeof(line), "%s", PR_GetString(f->s_name));
+		else
+			q_snprintf (line, sizeof(line), "bad function %i", val->function);
 		break;
 	case ev_field:
 		def = ED_FieldAtOfs ( val->_int );
-		q_snprintf (line, sizeof(line), "%s", PR_GetString(def->s_name));
+		if (def)
+			q_snprintf (line, sizeof(line), "%s", PR_GetString(def->s_name));
+		else
+			q_snprintf (line, sizeof(line), "bad field %i", val->_int);
 		break;
 	case ev_void:
 		q_snprintf (line, sizeof(line), "void");
@@ -519,7 +543,7 @@ static const char *PR_UglyValueString (int type, eval_t *val)
 		q_snprintf (line, sizeof(line), "%f", val->_float);
 		break;
 	case ev_vector:
-		q_snprintf (line, sizeof(line), "%f %f %f", val->vector[0], val->vector[1], val->vector[2]);
+		q_snprintf (line, sizeof(line), "%f %f %f", val[0]._float, val[1]._float, val[2]._float);
 		break;
 	default:
 		q_snprintf (line, sizeof(line), "bad type %i", type);
@@ -582,12 +606,18 @@ static const char *PR_UglySaveValueString (savedata_t *save, int type, eval_t *v
 		q_snprintf (line, sizeof(line), "%i", SAVE_NUM_FOR_EDICT(save, SAVE_PROG_TO_EDICT(save, val->edict)));
 		break;
 	case ev_function:
-		f = qcvm->functions + val->function;
-		q_snprintf (line, sizeof(line), "%s", PR_GetSaveString(save, f->s_name));
+		f = PR_GetFunction(val->function);
+		if (f)
+			q_snprintf (line, sizeof(line), "%s", PR_GetSaveString(save, f->s_name));
+		else
+			SDL_AtomicCAS (&save->abort, 0, -1);
 		break;
 	case ev_field:
 		def = ED_FieldAtOfs ( val->_int );
-		q_snprintf (line, sizeof(line), "%s", PR_GetSaveString(save, def->s_name));
+		if (def)
+			q_snprintf (line, sizeof(line), "%s", PR_GetSaveString(save, def->s_name));
+		else
+			SDL_AtomicCAS (&save->abort, 0, -1);
 		break;
 	case ev_void:
 		q_snprintf (line, sizeof(line), "void");
@@ -596,7 +626,7 @@ static const char *PR_UglySaveValueString (savedata_t *save, int type, eval_t *v
 		q_snprintf (line, sizeof(line), "%f", val->_float);
 		break;
 	case ev_vector:
-		q_snprintf (line, sizeof(line), "%f %f %f", val->vector[0], val->vector[1], val->vector[2]);
+		q_snprintf (line, sizeof(line), "%f %f %f", val[0]._float, val[1]._float, val[2]._float);
 		break;
 	default:
 		q_snprintf (line, sizeof(line), "bad type %i", type);
@@ -621,15 +651,13 @@ const char *PR_GlobalString (int ofs)
 	const char	*s;
 	int		i;
 	ddef_t		*def;
-	void		*val;
 
-	val = (void *)&qcvm->globals[ofs];
 	def = ED_GlobalAtOfs(ofs);
 	if (!def)
 		q_snprintf (line, sizeof(line), "%i(?)", ofs);
 	else
 	{
-		s = PR_ValueString (def->type, (eval_t *)val);
+		s = PR_ValueString (def->type, &qcvm->globals[ofs]);
 		q_snprintf (line, sizeof(line), "%i(%s)%s", ofs, PR_GetString(def->s_name), s);
 	}
 
@@ -683,7 +711,6 @@ qboolean ED_IsRelevantField (edict_t *ed, ddef_t *d)
 {
 	const char	*name;
 	size_t		l;
-	int			*v;
 	int			type;
 	int			i;
 
@@ -697,9 +724,8 @@ qboolean ED_IsRelevantField (edict_t *ed, ddef_t *d)
 		return false;
 
 	// if the value is still all 0, skip the field
-	v = (int *)((char *)&ed->v + d->ofs*4);
 	for (i = 0; i < type_size[type]; i++)
-		if (v[i])
+		if (ed->e[d->ofs + i]._int)
 			return true;
 
 	return false;
@@ -726,7 +752,7 @@ const char *ED_FieldValueString (edict_t *ed, ddef_t *d)
 {
 	static char str[1024];
 	int ofs = d->ofs*4;
-	eval_t *val = (eval_t *)((char *)&ed->v + ofs);
+	eval_t *val = &ed->e[d->ofs];
 
 	// .movetype
 	if (ofs == offsetof (entvars_t, movetype) && val->_float == (int)val->_float)
@@ -913,7 +939,7 @@ For savegames
 void ED_Write (savedata_t *save, edict_t *ed)
 {
 	ddef_t	*d;
-	int		*v;
+	eval_t	*v;
 	int		i, j;
 	int		type;
 
@@ -930,7 +956,6 @@ void ED_Write (savedata_t *save, edict_t *ed)
 		d = &qcvm->fielddefs[i];
 		if (!(d->type & DEF_SAVEGLOBAL))
 			continue;
-		v = (int *)((char *)&ed->v + d->ofs*4);
 
 	// if the value is still all 0, skip the field
 		type = d->type & ~DEF_SAVEGLOBAL;
@@ -938,16 +963,17 @@ void ED_Write (savedata_t *save, edict_t *ed)
 		if (type >= NUM_TYPE_SIZES)
 			continue;
 
+		v = &ed->e[d->ofs];
 		for (j = 0; j < type_size[type]; j++)
 		{
-			if (v[j])
+			if (v[j]._int)
 				break;
 		}
 		if (j == type_size[type])
 			continue;
 
 		fprintf (save->file, "\"%s\" \"%s\"\n",
-			PR_GetSaveString (save,d->s_name), PR_UglySaveValueString (save, d->type, (eval_t *)v)
+			PR_GetSaveString (save,d->s_name), PR_UglySaveValueString (save, d->type, v)
 		);
 	}
 
@@ -1109,7 +1135,7 @@ void ED_WriteGlobals (savedata_t *save)
 
 		fprintf (save->file, "\"%s\" \"%s\"\n",
 			PR_GetSaveString (save, def->s_name),
-			PR_UglySaveValueString (save, type, (eval_t *)&save->globals[def->ofs])
+			PR_UglySaveValueString (save, type, &save->globals[def->ofs])
 		);
 	}
 	fprintf (save->file, "}\n");
@@ -1151,7 +1177,7 @@ const char *ED_ParseGlobals (const char *data)
 			continue;
 		}
 
-		if (!ED_ParseEpair ((void *)qcvm->globals, key, com_token, false))
+		if (!ED_ParseEpair (qcvm->globals, key, com_token, false))
 			Host_Error ("ED_ParseGlobals: parse error");
 	}
 	return data;
@@ -1231,29 +1257,29 @@ Can parse either fields or globals
 returns false if error
 =============
 */
-static qboolean ED_ParseEpair (void *base, ddef_t *key, const char *s, qboolean zoned)
+static qboolean ED_ParseEpair (eval_t *base, ddef_t *key, const char *s, qboolean zoned)
 {
 	int		i;
 	char	string[128];
 	ddef_t	*def;
 	char	*v, *w;
 	char	*end;
-	void	*d;
+	eval_t	*d;
 	dfunction_t	*func;
 
-	d = (void *)((int *)base + key->ofs);
+	d = &base[key->ofs];
 
 	switch (key->type & ~DEF_SAVEGLOBAL)
 	{
 	case ev_string:
 		if (zoned)	//zoned version allows us to change the strings more freely
-			ED_RezoneString((string_t *)d, s);
+			ED_RezoneString(&d->string, s);
 		else
-			*(string_t *)d = ED_NewString(s);
+			d->string = ED_NewString(s);
 		break;
 
 	case ev_float:
-		*(float *)d = atof (s);
+		d->_float = atof (s);
 		break;
 
 	case ev_vector:
@@ -1268,7 +1294,7 @@ static qboolean ED_ParseEpair (void *base, ddef_t *key, const char *s, qboolean 
 			while (*v && *v != ' ')
 				v++;
 			*v = 0;
-			((float *)d)[i] = atof (w);
+			d[i]._float = atof (w);
 			w = v = v+1;
 		}
 		// ericw -- fill remaining elements to 0 in case we hit the end of string
@@ -1277,12 +1303,12 @@ static qboolean ED_ParseEpair (void *base, ddef_t *key, const char *s, qboolean 
 		{
 			Con_DWarning ("Avoided reading garbage for \"%s\" \"%s\"\n", PR_GetString(key->s_name), s);
 			for (; i < 3; i++)
-				((float *)d)[i] = 0.0f;
+				d[i]._float = 0.0f;
 		}
 		break;
 
 	case ev_entity:
-		*(int *)d = EDICT_TO_PROG(EDICT_NUM(atoi (s)));
+		d->edict = EDICT_TO_PROG(EDICT_NUM(atoi (s)));
 		break;
 
 	case ev_field:
@@ -1294,7 +1320,7 @@ static qboolean ED_ParseEpair (void *base, ddef_t *key, const char *s, qboolean 
 				Con_DPrintf ("Can't find field %s\n", s);
 			return false;
 		}
-		*(int *)d = G_INT(def->ofs);
+		d->_int = G_INT(def->ofs);
 		break;
 
 	case ev_function:
@@ -1304,7 +1330,7 @@ static qboolean ED_ParseEpair (void *base, ddef_t *key, const char *s, qboolean 
 			Con_Printf ("Can't find function %s\n", s);
 			return false;
 		}
-		*(func_t *)d = func - qcvm->functions;
+		d->function = func - qcvm->functions;
 		break;
 
 	default:
@@ -1408,7 +1434,7 @@ const char *ED_ParseEdict (const char *data, edict_t *ent)
 			q_snprintf (com_token, sizeof(com_token), "0 %s 0", temp);
 		}
 
-		if (!ED_ParseEpair ((void *)&ent->v, key, com_token, qcvm != &sv.qcvm))
+		if (!ED_ParseEpair (ent->e, key, com_token, qcvm != &sv.qcvm))
 			Host_Error ("ED_ParseEdict: parse error");
 	}
 
@@ -1684,7 +1710,7 @@ void PR_AutoCvarChanged(cvar_t *var)
 		glob = ED_FindGlobal(n);
 		if (glob)
 		{
-			if (!ED_ParseEpair ((void *)qcvm->globals, glob, var->string, true))
+			if (!ED_ParseEpair (qcvm->globals, glob, var->string, true))
 				Con_Warning("EXT: Unable to configure %s\n", n);
 		}
 		PR_SwitchQCVM(NULL);
@@ -1696,7 +1722,7 @@ void PR_AutoCvarChanged(cvar_t *var)
 		glob = ED_FindGlobal(n);
 		if (glob)
 		{
-			if (!ED_ParseEpair ((void *)qcvm->globals, glob, var->string, true))
+			if (!ED_ParseEpair (qcvm->globals, glob, var->string, true))
 				Con_Warning("EXT: Unable to configure %s\n", n);
 		}
 		PR_SwitchQCVM(NULL);
@@ -1749,12 +1775,12 @@ void PR_EnableExtensions (void)
 		if (!strncmp(n, "autocvar_", 9))
 		{
 			//really crappy approach
-			cvar_t *var = Cvar_Create(n + 9, PR_UglyValueString (qcvm->globaldefs[i].type, (eval_t*)(qcvm->globals + qcvm->globaldefs[i].ofs)));
+			cvar_t *var = Cvar_Create(n + 9, PR_UglyValueString (qcvm->globaldefs[i].type, qcvm->globals + qcvm->globaldefs[i].ofs));
 			numautocvars++;
 			if (!var)
 				continue;	//name conflicts with a command?
 
-			if (!ED_ParseEpair ((void *)qcvm->globals, &qcvm->globaldefs[i], var->string, true))
+			if (!ED_ParseEpair (qcvm->globals, &qcvm->globaldefs[i], var->string, true))
 				Con_Warning("EXT: Unable to configure %s\n", n);
 			var->flags |= CVAR_AUTOCVAR;
 		}
@@ -2090,6 +2116,13 @@ static void PR_FillOffsetTables (void)
 	}
 }
 
+#define CHECK_HDR(what, type) do { \
+	if ((uint64_t)qcvm->progs->ofs_##what + (uint64_t)qcvm->progs->num##what * sizeof(type) > com_filesize) \
+		Host_Error ("%s " #what " go past end of file", filename); \
+	if (qcvm->progs->ofs_##what & 3) \
+		Host_Error ("%s " #what " not properly aligned", filename); \
+	} while (0)
+
 /*
 ===============
 PR_LoadProgs
@@ -2104,6 +2137,9 @@ qboolean PR_LoadProgs (const char *filename, qboolean fatal)
 	qcvm->progs = (dprograms_t *)COM_LoadHunkFile (filename, NULL);
 	if (!qcvm->progs)
 		return false;
+	if (com_filesize < sizeof(dprograms_t))
+		Host_Error ("%s is too small", filename);
+
 	Con_DPrintf ("Programs occupy %" SDL_PRIs64 "K.\n", com_filesize/1024);
 
 	qcvm->crc = CRC_Block (qcvm->progs, com_filesize);
@@ -2162,10 +2198,20 @@ qboolean PR_LoadProgs (const char *filename, qboolean fatal)
 		}
 	}
 
+	CHECK_HDR(statements, dstatement_t);
+	CHECK_HDR(globaldefs, ddef_t);
+	CHECK_HDR(fielddefs, ddef_t);
+	CHECK_HDR(functions, dfunction_t);
+	CHECK_HDR(strings, char);
+	CHECK_HDR(globals, eval_t);
+
+	if (qcvm->progs->entityfields > 8192)
+		Host_Error ("PR_LoadProgs: bad entityfields");
+	if (qcvm->progs->numglobals < sizeof(globalvars_t) / 4)
+		Host_Error ("PR_LoadProgs: bad numglobals");
+
 	qcvm->functions = (dfunction_t *)((byte *)qcvm->progs + qcvm->progs->ofs_functions);
 	qcvm->strings = (char *)qcvm->progs + qcvm->progs->ofs_strings;
-	if (qcvm->progs->ofs_strings + qcvm->progs->numstrings >= com_filesize)
-		Host_Error ("progs.dat strings go past end of file\n");
 
 	// initialize the strings
 	qcvm->numknownstrings = 0;
@@ -2181,7 +2227,7 @@ qboolean PR_LoadProgs (const char *filename, qboolean fatal)
 	qcvm->fielddefs = (ddef_t *)((byte *)qcvm->progs + qcvm->progs->ofs_fielddefs);
 	qcvm->statements = (dstatement_t *)((byte *)qcvm->progs + qcvm->progs->ofs_statements);
 
-	qcvm->globals = (float *)((byte *)qcvm->progs + qcvm->progs->ofs_globals);
+	qcvm->globals = (eval_t *)((byte *)qcvm->progs + qcvm->progs->ofs_globals);
 	pr_global_struct = (globalvars_t*)qcvm->globals;
 
 	// byte swap the lumps
@@ -2191,6 +2237,7 @@ qboolean PR_LoadProgs (const char *filename, qboolean fatal)
 		qcvm->statements[i].a = LittleShort(qcvm->statements[i].a);
 		qcvm->statements[i].b = LittleShort(qcvm->statements[i].b);
 		qcvm->statements[i].c = LittleShort(qcvm->statements[i].c);
+		PR_ValidateStatement(&qcvm->statements[i]);
 	}
 
 	for (i = 0; i < qcvm->progs->numfunctions; i++)
@@ -2201,6 +2248,17 @@ qboolean PR_LoadProgs (const char *filename, qboolean fatal)
 		qcvm->functions[i].s_file = LittleLong (qcvm->functions[i].s_file);
 		qcvm->functions[i].numparms = LittleLong (qcvm->functions[i].numparms);
 		qcvm->functions[i].locals = LittleLong (qcvm->functions[i].locals);
+
+		if (qcvm->functions[i].first_statement <= -MAX_BUILTINS)
+			Host_Error ("PR_LoadProgs: first_statement <= -MAX_BUILTINS");
+		if (qcvm->functions[i].first_statement >= (int32_t)qcvm->progs->numstatements)
+			Host_Error ("PR_LoadProgs: first_statement >= numstatements");
+		if (qcvm->functions[i].numparms > MAX_PARMS)
+			Host_Error ("PR_LoadProgs: numparms > MAX_PARMS");
+		if (qcvm->functions[i].locals > LOCALSTACK_SIZE)
+			Host_Error ("PR_LoadProgs: locals > LOCALSTACK_SIZE");
+		if ((uint64_t)qcvm->functions[i].parm_start + qcvm->functions[i].locals > qcvm->progs->numglobals)
+			Host_Error ("PR_LoadProgs: parm_start + locals > numglobals");
 	}
 
 	for (i = 0; i < qcvm->progs->numglobaldefs; i++)
@@ -2208,6 +2266,8 @@ qboolean PR_LoadProgs (const char *filename, qboolean fatal)
 		qcvm->globaldefs[i].type = LittleShort (qcvm->globaldefs[i].type);
 		qcvm->globaldefs[i].ofs = LittleShort (qcvm->globaldefs[i].ofs);
 		qcvm->globaldefs[i].s_name = LittleLong (qcvm->globaldefs[i].s_name);
+		if (qcvm->globaldefs[i].ofs >= qcvm->progs->numglobals)
+			Host_Error ("PR_LoadProgs: ofs >= numglobals");
 	}
 
 	for (i = 0; i < qcvm->progs->numfielddefs; i++)
@@ -2217,10 +2277,12 @@ qboolean PR_LoadProgs (const char *filename, qboolean fatal)
 			Host_Error ("PR_LoadProgs: pr_fielddefs[i].type & DEF_SAVEGLOBAL");
 		qcvm->fielddefs[i].ofs = LittleShort (qcvm->fielddefs[i].ofs);
 		qcvm->fielddefs[i].s_name = LittleLong (qcvm->fielddefs[i].s_name);
+		if (qcvm->fielddefs[i].ofs >= qcvm->progs->entityfields)
+			Host_Error ("PR_LoadProgs: ofs >= entityfields");
 	}
 
 	for (i = 0; i < qcvm->progs->numglobals; i++)
-		((int *)qcvm->globals)[i] = LittleLong (((int *)qcvm->globals)[i]);
+		qcvm->globals[i]._int = LittleLong (qcvm->globals[i]._int);
 
 	//spike: detect extended fields from progs
 	PR_MergeEngineFieldDefs ();
@@ -2306,9 +2368,19 @@ int NUM_FOR_EDICT(edict_t *e)
 	b = (byte *)e - (byte *)qcvm->edicts;
 	b = b / qcvm->edict_size;
 
-	if (b < 0 || b >= qcvm->num_edicts)
+	if (b < 0 || b >= qcvm->max_edicts)
 		Host_Error ("NUM_FOR_EDICT: bad pointer");
 	return b;
+}
+
+edict_t *SAVE_EDICT_NUM(savedata_t *save, int n)
+{
+	if (n < 0 || n >= qcvm->max_edicts)
+	{
+		SDL_AtomicCAS (&save->abort, 0, -1);
+		return save->edicts;
+	}
+	return (edict_t *)((byte *)save->edicts + (n)*qcvm->edict_size);
 }
 
 int SAVE_NUM_FOR_EDICT (savedata_t *save, edict_t *e)
@@ -2318,7 +2390,7 @@ int SAVE_NUM_FOR_EDICT (savedata_t *save, edict_t *e)
 	b = (byte *)e - (byte *)save->edicts;
 	b = b / qcvm->edict_size;
 
-	if (b < 0 || b >= save->num_edicts)
+	if (b < 0 || b >= qcvm->max_edicts)
 	{
 		SDL_AtomicCAS (&save->abort, 0, -1);
 		return 0;
@@ -2500,7 +2572,7 @@ void SaveData_Fill (savedata_t *save)
 	save->numknownstrings = qcvm->numknownstrings;
 
 	/* globals */
-	save->globals = (float *) (save->buffer + ofs);
+	save->globals = (eval_t *) (save->buffer + ofs);
 	ofs += sizeof (*save->globals) * qcvm->progs->numglobals;
 	memcpy (save->globals, qcvm->globals, sizeof (*save->globals) * qcvm->progs->numglobals);
 

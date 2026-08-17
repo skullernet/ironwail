@@ -41,7 +41,7 @@ int PR_MakeTempString (const char *val)
 	return PR_SetEngineString(tmp);
 }
 
-#define	RETURN_EDICT(e) (((int *)qcvm->globals)[OFS_RETURN] = EDICT_TO_PROG(e))
+#define	RETURN_EDICT(e) (qcvm->globals[OFS_RETURN].edict = EDICT_TO_PROG(e))
 
 #define	MSG_BROADCAST	0		// unreliable to all
 #define	MSG_ONE		1		// reliable to one (msg_entity)
