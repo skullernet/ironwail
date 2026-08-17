@@ -3532,6 +3532,12 @@ static edict_t	*FindViewthing (void)
 		Con_Printf ("No viewthing on map\n");
 	}
 
+	if (!(e->v.modelindex >= 0 && e->v.modelindex < MAX_MODELS))
+	{
+		e = NULL;
+		Con_Printf ("Bad viewthing modelindex\n");
+	}
+
 	PR_SwitchQCVM(NULL);
 	return e;
 }

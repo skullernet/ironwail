@@ -143,7 +143,9 @@ hull_t *SV_HullForEntity (edict_t *ent, vec3_t mins, vec3_t maxs, vec3_t offset)
 			Host_Error ("SOLID_BSP without MOVETYPE_PUSH (%s at %f %f %f)",
 				    PR_GetString(ent->v.classname), ent->v.origin[0], ent->v.origin[1], ent->v.origin[2]);
 
-		model = sv.models[ (int)ent->v.modelindex ];
+		model = NULL;
+		if (ent->v.modelindex >= 0 && ent->v.modelindex < MAX_MODELS)
+			model = sv.models[ (int)ent->v.modelindex ];
 
 		if (!model || model->type != mod_brush)
 			Host_Error ("SOLID_BSP with a non bsp model (%s at %f %f %f)",

@@ -325,7 +325,7 @@ static void PF_setmodel (void)
 	e->v.model = PR_SetEngineString(*check);
 	e->v.modelindex = i; //SV_ModelIndex (m);
 
-	mod = sv.models[ (int)e->v.modelindex];  // Mod_ForName (m, true);
+	mod = sv.models[i];  // Mod_ForName (m, true);
 
 	if (mod)
 	//johnfitz -- correct physics cullboxes for bmodels

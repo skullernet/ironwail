@@ -503,11 +503,7 @@ void CL_ParseUpdate (int bits)
 	ent->msgtime = cl.mtime[0];
 
 	if (bits & U_MODEL)
-	{
 		modnum = MSG_ReadByte ();
-		if (modnum >= MAX_MODELS)
-			Host_Error ("CL_ParseModel: bad modnum");
-	}
 	else
 		modnum = ent->baseline.modelindex;
 
@@ -521,7 +517,7 @@ void CL_ParseUpdate (int bits)
 		i = MSG_ReadByte();
 	else
 		i = ent->baseline.colormap;
-	if (!i)
+	if (i <= 0)
 		ent->colormap = vid.colormap;
 	else
 	{
@@ -634,6 +630,8 @@ void CL_ParseUpdate (int bits)
 	//johnfitz
 
 	//johnfitz -- moved here from above
+	if (modnum < 0 || modnum >= MAX_MODELS)
+		Host_Error ("CL_ParseUpdate: bad modnum");
 	model = cl.model_precache[modnum];
 	if (model != ent->model)
 	{
@@ -684,6 +682,8 @@ void CL_ParseBaseline (entity_t *ent, int version) //johnfitz -- added argument
 	bits = (version == 2) ? MSG_ReadByte() : 0;
 	ent->baseline.modelindex = (bits & B_LARGEMODEL) ? MSG_ReadShort() : MSG_ReadByte();
 	ent->baseline.frame = (bits & B_LARGEFRAME) ? MSG_ReadShort() : MSG_ReadByte();
+	if (ent->baseline.modelindex < 0 || ent->baseline.modelindex >= MAX_MODELS)
+		Host_Error ("CL_ParseBaseline: bad modelindex");
 	//johnfitz
 
 	ent->baseline.colormap = MSG_ReadByte();
@@ -879,10 +879,11 @@ void CL_ParseClientdata (void)
 
 	//johnfitz -- lerping
 	//ericw -- this was done before the upper 8 bits of cl.stats[STAT_WEAPON] were filled in, breaking on large maps like zendar.bsp
-	if (cl.viewent.model != cl.model_precache[cl.stats[STAT_WEAPON]])
-	{
+	i = cl.stats[STAT_WEAPON];
+	if (i < 0 || i >= MAX_MODELS)
+		Host_Error ("CL_ParseClientdata: bad weapon");
+	if (cl.viewent.model != cl.model_precache[i])
 		cl.viewent.lerpflags |= LERP_RESETANIM; //don't lerp animation across model changes
-	}
 	//johnfitz
 }
 
@@ -983,6 +984,9 @@ void CL_ParseStaticSound (int version) //johnfitz -- added argument
 
 	vol = MSG_ReadByte ();
 	atten = MSG_ReadByte ();
+
+	if (sound_num < 0 || sound_num >= MAX_SOUNDS)
+		Host_Error("Bad sound number");
 
 	S_StaticSound (cl.sound_precache[sound_num], org, vol, atten);
 }
@@ -1187,11 +1191,13 @@ void CL_ParseServerMessage (void)
 
 		case svc_setview:
 			cl.viewentity = MSG_ReadShort ();
+			if (cl.viewentity < 0 || cl.viewentity >= cl_max_edicts)
+				Host_Error ("CL_ParseServerMessage: bad viewentity");
 			break;
 
 		case svc_lightstyle:
 			i = MSG_ReadByte ();
-			if (i >= MAX_LIGHTSTYLES)
+			if (i < 0 || i >= MAX_LIGHTSTYLES)
 				Sys_Error ("svc_lightstyle > MAX_LIGHTSTYLES");
 			CL_SetLightstyle (i, MSG_ReadString ());
 			break;
@@ -1208,7 +1214,7 @@ void CL_ParseServerMessage (void)
 		case svc_updatename:
 			Sbar_Changed ();
 			i = MSG_ReadByte ();
-			if (i >= cl.maxclients)
+			if (i < 0 || i >= cl.maxclients)
 				Host_Error ("CL_ParseServerMessage: svc_updatename > MAX_SCOREBOARD");
 			q_strlcpy (cl.scores[i].name, MSG_ReadString(), MAX_SCOREBOARDNAME);
 			break;
@@ -1216,7 +1222,7 @@ void CL_ParseServerMessage (void)
 		case svc_updatefrags:
 			Sbar_Changed ();
 			i = MSG_ReadByte ();
-			if (i >= cl.maxclients)
+			if (i < 0 || i >= cl.maxclients)
 				Host_Error ("CL_ParseServerMessage: svc_updatefrags > MAX_SCOREBOARD");
 			cl.scores[i].frags = MSG_ReadShort ();
 			break;
@@ -1224,7 +1230,7 @@ void CL_ParseServerMessage (void)
 		case svc_updatecolors:
 			Sbar_Changed ();
 			i = MSG_ReadByte ();
-			if (i >= cl.maxclients)
+			if (i < 0 || i >= cl.maxclients)
 				Host_Error ("CL_ParseServerMessage: svc_updatecolors > MAX_SCOREBOARD");
 			cl.scores[i].colors = MSG_ReadByte ();
 			CL_NewTranslation (i);
@@ -1291,8 +1297,10 @@ void CL_ParseServerMessage (void)
 		case svc_updatestat:
 			i = MSG_ReadByte ();
 			if (i < 0 || i >= MAX_CL_STATS)
-				Sys_Error ("svc_updatestat: %i is invalid", i);
+				Host_Error ("svc_updatestat: %i is invalid", i);
 			cl.stats[i] = MSG_ReadLong ();
+			if (i == STAT_WEAPON && (cl.stats[i] < 0 || cl.stats[i] >= MAX_MODELS))
+				Host_Error ("svc_updatestat: bad weapon");
 			cl.statsf[i] = cl.stats[i];
 			break;
 

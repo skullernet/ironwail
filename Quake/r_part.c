@@ -263,6 +263,9 @@ void R_ParticleExplosion2 (vec3_t org, int colorStart, int colorLength)
 	particle_t	*p;
 	int			colorMod = 0;
 
+	if (colorLength <= 0)
+		Host_Error ("R_ParticleExplosion2: colorLength <= 0");
+
 	for (i=0; i<512; i++)
 	{
 		if (!(p = R_AllocParticle ()))
