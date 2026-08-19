@@ -2515,7 +2515,7 @@ void SaveData_Init (savedata_t *save)
 	save->buffersize = 48 * 1024 * 1024; // ad_sepulcher needs ~32 MB
 	save->buffer = (byte *) malloc (save->buffersize);
 	if (!save->buffer)
-		Sys_Error ("SaveData_Init: couldn't allocate %d bytes", save->buffersize);
+		Sys_Error ("SaveData_Init: couldn't allocate %" Q_PRIzu " bytes", save->buffersize);
 }
 
 void SaveData_Clear (savedata_t *save)
@@ -2528,7 +2528,8 @@ void SaveData_Clear (savedata_t *save)
 
 void SaveData_Fill (savedata_t *save)
 {
-	int i, ofs, size;
+	size_t ofs, size;
+	int i;
 
 	Host_SavegameComment (save->comment);
 
@@ -2561,7 +2562,7 @@ void SaveData_Fill (savedata_t *save)
 		save->buffersize = size + size/2;
 		save->buffer = (byte *) realloc (save->buffer, save->buffersize);
 		if (!save->buffer)
-			Sys_Error ("SaveData_Fill: failed to allocate %d bytes", save->buffersize);
+			Sys_Error ("SaveData_Fill: failed to allocate %" Q_PRIzu " bytes", save->buffersize);
 	}
 
 	ofs = 0;

@@ -77,17 +77,17 @@ void Memory_Init (void *buf, int size);
 extern "C" {
 #endif
 void Z_Free (void *ptr);
-void *Z_Malloc (int size);			// returns 0 filled memory
-void *Z_Realloc (void *ptr, int size);
+void *Z_Malloc (size_t size);			// returns 0 filled memory
+void *Z_Realloc (void *ptr, size_t size);
 char *Z_Strdup (const char *s);
 #ifdef __cplusplus
 }
 #endif
 
-void *Hunk_Alloc (int size); // returns 0 filled memory
-void *Hunk_AllocNoFill (int size); // returns uninitialized memory
-void *Hunk_AllocName (int size, const char *name); // returns 0 filled memory
-void *Hunk_AllocNameNoFill (int size, const char *name); // returns uninitialized memory
+void *Hunk_Alloc (size_t size); // returns 0 filled memory
+void *Hunk_AllocNoFill (size_t size); // returns uninitialized memory
+void *Hunk_AllocName (size_t size, const char *name); // returns 0 filled memory
+void *Hunk_AllocNameNoFill (size_t size, const char *name); // returns uninitialized memory
 char *Hunk_Strdup (const char *s, const char *name);
 
 int	Hunk_LowMark (void);
@@ -108,7 +108,7 @@ void *Cache_Check (cache_user_t *c);
 
 void Cache_Free (cache_user_t *c, qboolean freetextures); //johnfitz -- added second argument
 
-void *Cache_Alloc (cache_user_t *c, int size, const char *name);
+void *Cache_Alloc (cache_user_t *c, size_t size, const char *name);
 // Returns NULL if all purgable data was tossed and there still
 // wasn't enough room.
 

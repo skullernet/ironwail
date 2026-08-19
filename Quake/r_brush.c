@@ -577,7 +577,7 @@ Rebuilds gl_bmodel_vbo with all surfaces from world + all brush models
 */
 void GL_BuildBModelVertexBuffer (void)
 {
-	unsigned int	numverts, varray_bytes, varray_index;
+	size_t		numverts, varray_bytes, varray_index;
 	int			i, j, k;
 	qmodel_t	*m;
 	glvert_t	*varray;
@@ -602,7 +602,7 @@ void GL_BuildBModelVertexBuffer (void)
 	varray_bytes = sizeof (glvert_t) * numverts;
 	varray = (glvert_t *) malloc (varray_bytes);
 	if (!varray)
-		Sys_Error ("GL_BuildBModelVertexBuffer: out of memory on %u bytes", varray_bytes);
+		Sys_Error ("GL_BuildBModelVertexBuffer: out of memory on %" Q_PRIzu " bytes", varray_bytes);
 	varray_index = 0;
 	
 	for (j=1 ; j<MAX_MODELS ; j++)

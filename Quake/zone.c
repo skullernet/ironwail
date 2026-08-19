@@ -108,7 +108,7 @@ void Z_Free (void *ptr)
 }
 
 
-static void *Z_TagMalloc (int size, int tag)
+static void *Z_TagMalloc (size_t size, int tag)
 {
 	int		extra;
 	memblock_t	*start, *rover, *newblock, *base;
@@ -116,6 +116,8 @@ static void *Z_TagMalloc (int size, int tag)
 	if (!tag)
 		Sys_Error ("Z_TagMalloc: tried to use a 0 tag");
 
+	if (size > INT_MAX - sizeof(memblock_t) - 4 - 7)
+		Sys_Error ("Z_TagMalloc: bad size: %" Q_PRIzu, size);
 //
 // scan through the block list looking for the first free block
 // of sufficient size
@@ -194,14 +196,14 @@ static void Z_CheckHeap (void)
 Z_Malloc
 ========================
 */
-void *Z_Malloc (int size)
+void *Z_Malloc (size_t size)
 {
 	void	*buf;
 
 	Z_CheckHeap ();	// DEBUG
 	buf = Z_TagMalloc (size, 1);
 	if (!buf)
-		Sys_Error ("Z_Malloc: failed on allocation of %i bytes",size);
+		Sys_Error ("Z_Malloc: failed on allocation of %" Q_PRIzu " bytes", size);
 	Q_memset (buf, 0, size);
 
 	return buf;
@@ -212,9 +214,9 @@ void *Z_Malloc (int size)
 Z_Realloc
 ========================
 */
-void *Z_Realloc(void *ptr, int size)
+void *Z_Realloc(void *ptr, size_t size)
 {
-	int old_size;
+	size_t old_size;
 	void *old_ptr;
 	memblock_t *block;
 
@@ -234,7 +236,7 @@ void *Z_Realloc(void *ptr, int size)
 	Z_Free (ptr);
 	ptr = Z_TagMalloc (size, 1);
 	if (!ptr)
-		Sys_Error ("Z_Realloc: failed on allocation of %i bytes", size);
+		Sys_Error ("Z_Realloc: failed on allocation of %" Q_PRIzu " bytes", size);
 
 	if (ptr != old_ptr)
 		memmove (ptr, old_ptr, q_min(old_size, size));
@@ -532,7 +534,7 @@ static int Hunk_SegForPtr (const void *ptr)
 Hunk_AllocInternal
 ===================
 */
-static void *Hunk_AllocInternal (int size, const char *name, hunkflags_t flags)
+static void *Hunk_AllocInternal (size_t size, const char *name, hunkflags_t flags)
 {
 	hunkseg_t	*seg;
 	hunk_t		*h;
@@ -545,15 +547,15 @@ static void *Hunk_AllocInternal (int size, const char *name, hunkflags_t flags)
 	if (size == 0)
 		return NULL;
 
-	if (size < 0)
-		Sys_Error ("Hunk_Alloc: bad size: %i", size);
+	if (size > INT_MAX - sizeof(hunk_t) - 15)
+		Sys_Error ("Hunk_Alloc: bad size: %" Q_PRIzu, size);
 
 	size = sizeof(hunk_t) + Q_ALIGN(size, 16);
 
 	i = Hunk_SegForOfs (hunk_low_used);
 
 	// skip segments that can't handle this request (adjusting hunk_low_used)
-	while (i < hunk_numsegments && (hunk_low_used - hunk_segments[i]->base) + size > hunk_segments[i]->size)
+	while (i < hunk_numsegments && size > hunk_segments[i]->base + hunk_segments[i]->size - hunk_low_used)
 	{
 		hunk_low_used = hunk_segments[i]->base + hunk_segments[i]->size;
 		i++;
@@ -562,9 +564,9 @@ static void *Hunk_AllocInternal (int size, const char *name, hunkflags_t flags)
 	// add new segment if we've reached the end
 	if (i == hunk_numsegments)
 	{
-		int newbase, newsize;
+		size_t newbase, newsize;
 
-		if (hunk_numsegments == MAX_SEGMENTS)
+		if (hunk_numsegments == MAX_SEGMENTS || LASTSEG->size > INT_MAX / 2 - LASTSEG->base)
 			Sys_Error ("Hunk_Alloc: segment overflow");
 
 		Cache_Flush ();
@@ -578,7 +580,7 @@ static void *Hunk_AllocInternal (int size, const char *name, hunkflags_t flags)
 		seg = (hunkseg_t *) malloc (sizeof (hunkseg_t) + newsize);
 		if (!seg)
 		{
-			Sys_Error ("Hunk_Alloc: failed on %i bytes", size);
+			Sys_Error ("Hunk_Alloc: failed on %" Q_PRIzu " bytes", size);
 			return NULL;
 		}
 
@@ -615,7 +617,7 @@ static void *Hunk_AllocInternal (int size, const char *name, hunkflags_t flags)
 Hunk_AllocName
 ===================
 */
-void *Hunk_AllocName (int size, const char *name)
+void *Hunk_AllocName (size_t size, const char *name)
 {
 	return Hunk_AllocInternal (size, name, HF_CLEAR);
 }
@@ -625,7 +627,7 @@ void *Hunk_AllocName (int size, const char *name)
 Hunk_AllocNameNoFill
 ===================
 */
-void *Hunk_AllocNameNoFill (int size, const char *name)
+void *Hunk_AllocNameNoFill (size_t size, const char *name)
 {
 	return Hunk_AllocInternal (size, name, HF_UNINIT);
 }
@@ -635,7 +637,7 @@ void *Hunk_AllocNameNoFill (int size, const char *name)
 Hunk_Alloc
 ===================
 */
-void *Hunk_Alloc (int size)
+void *Hunk_Alloc (size_t size)
 {
 	return Hunk_AllocName (size, NULL);
 }
@@ -645,7 +647,7 @@ void *Hunk_Alloc (int size)
 Hunk_AllocNoFill
 ===================
 */
-void *Hunk_AllocNoFill (int size)
+void *Hunk_AllocNoFill (size_t size)
 {
 	return Hunk_AllocNameNoFill (size, NULL);
 }
@@ -693,7 +695,7 @@ typedef struct cache_system_s
 	struct cache_system_s	*lru_prev, *lru_next;	// for LRU flushing
 } cache_system_t;
 
-cache_system_t *Cache_TryAlloc (int size, qboolean nobottom);
+cache_system_t *Cache_TryAlloc (size_t size, qboolean nobottom);
 
 cache_system_t	cache_head;
 
@@ -785,7 +787,7 @@ Looks for a free block of memory between the high and low hunk marks
 Size should already include the header and padding
 ============
 */
-cache_system_t *Cache_TryAlloc (int size, qboolean nobottom)
+cache_system_t *Cache_TryAlloc (size_t size, qboolean nobottom)
 {
 	cache_system_t	*cs, *new_cs;
 	int ofs = q_max (hunk_low_used, LASTSEG->base);
@@ -793,8 +795,8 @@ cache_system_t *Cache_TryAlloc (int size, qboolean nobottom)
 // is the cache completely empty?
 	if (!nobottom && cache_head.prev == &cache_head)
 	{
-		if ((ofs - LASTSEG->base) + size > LASTSEG->size)
-			Sys_Error ("Cache_TryAlloc: %i is greater then free hunk", size);
+		if (size > Hunk_Size() - ofs)
+			Sys_Error ("Cache_TryAlloc: %" Q_PRIzu " is greater than free hunk", size);
 
 		new_cs = (cache_system_t *) (SEG_MEM (LASTSEG) + ofs - LASTSEG->base);
 		memset (new_cs, 0, sizeof(*new_cs));
@@ -839,7 +841,7 @@ cache_system_t *Cache_TryAlloc (int size, qboolean nobottom)
 	} while (cs != &cache_head);
 
 // try to allocate one at the very end
-	if ((byte *)new_cs - SEG_MEM (LASTSEG) + size <= LASTSEG->size)
+	if (LASTSEG->size - ((byte *)new_cs - SEG_MEM (LASTSEG)) >= size)
 	{
 		memset (new_cs, 0, sizeof(*new_cs));
 		new_cs->size = size;
@@ -971,15 +973,15 @@ void *Cache_Check (cache_user_t *c)
 Cache_Alloc
 ==============
 */
-void *Cache_Alloc (cache_user_t *c, int size, const char *name)
+void *Cache_Alloc (cache_user_t *c, size_t size, const char *name)
 {
 	cache_system_t	*cs;
 
 	if (c->data)
 		Sys_Error ("Cache_Alloc: already allocated");
 
-	if (size <= 0)
-		Sys_Error ("Cache_Alloc: size %i", size);
+	if (size == 0 || size > INT_MAX - sizeof(cache_system_t) - 15)
+		Sys_Error ("Cache_Alloc: size %" Q_PRIzu, size);
 
 	size = Q_ALIGN(sizeof(cache_system_t) + size, 16);
 

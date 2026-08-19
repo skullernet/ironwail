@@ -307,7 +307,7 @@ typedef struct savedata_s
 	eval_t			*globals;
 	const char		*lightstyles[MAX_LIGHTSTYLES];
 	byte			*buffer;
-	int				buffersize;
+	size_t			buffersize;
 } savedata_t;
 
 #define	SAVEGAME_VERSION		5
