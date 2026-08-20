@@ -1928,7 +1928,7 @@ static void Con_PrintTabList (void)
 		return;
 	maxlen += 3;										// indent
 	maxlen = q_max (maxlen, 8);							// min width
-	maxlen = (maxlen + 3) & ~3;							// round up to multiple of 4
+	maxlen = Q_ALIGN (maxlen, 4);						// round up to multiple of 4
 	cols = q_max (con_linewidth, maxlen) / maxlen;
 	if (con_maxcols.value >= 1.f)
 		cols = q_min (cols, (int) con_maxcols.value);	// apply user limit

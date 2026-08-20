@@ -124,7 +124,7 @@ qsocket_t *Loop_CheckNewConnections (void)
 
 static int IntAlign(int value)
 {
-	return (value + (sizeof(int) - 1)) & (~(sizeof(int) - 1));
+	return Q_ALIGN(value, sizeof(int));
 }
 
 

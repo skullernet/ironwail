@@ -122,7 +122,7 @@ static void *Z_TagMalloc (int size, int tag)
 //
 	size += sizeof(memblock_t);	// account for size of block header
 	size += 4;					// space for memory trash tester
-	size = (size + 7) & ~7;		// align to 8-byte boundary
+	size = Q_ALIGN(size, 8);	// align to 8-byte boundary
 
 	base = rover = mainzone->rover;
 	start = base->prev;
@@ -548,7 +548,7 @@ static void *Hunk_AllocInternal (int size, const char *name, hunkflags_t flags)
 	if (size < 0)
 		Sys_Error ("Hunk_Alloc: bad size: %i", size);
 
-	size = sizeof(hunk_t) + ((size+15)&~15);
+	size = sizeof(hunk_t) + Q_ALIGN(size, 16);
 
 	i = Hunk_SegForOfs (hunk_low_used);
 
@@ -981,7 +981,7 @@ void *Cache_Alloc (cache_user_t *c, int size, const char *name)
 	if (size <= 0)
 		Sys_Error ("Cache_Alloc: size %i", size);
 
-	size = (size + sizeof(cache_system_t) + 15) & ~15;
+	size = Q_ALIGN(sizeof(cache_system_t) + size, 16);
 
 // find memory for it
 	while (1)

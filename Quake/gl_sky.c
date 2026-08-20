@@ -471,7 +471,7 @@ void Sky_LoadSkyBox (const char *name)
 	{
 		const int cubemap_order[6] = {3, 1, 4, 5, 0, 2}; // ft/bk/up/dn/rt/lf
 		size_t numfacebytes = samesize * samesize * 4;
-		size_t aligneddatasize = (numfacebytes * 6 + sizeof (void *) - 1) & ~(sizeof (void *) - 1);
+		size_t aligneddatasize = Q_ALIGN (numfacebytes * 6, sizeof (void *));
 
 		newsky.cubemap_pixels = (byte *) malloc (aligneddatasize + sizeof (void *) * 6);
 		if (!newsky.cubemap_pixels)

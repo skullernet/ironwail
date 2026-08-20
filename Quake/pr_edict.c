@@ -2234,8 +2234,7 @@ qboolean PR_LoadProgs (const char *filename, qboolean fatal)
 	// round off to next highest whole word address (esp for Alpha)
 	// this ensures that pointers in the engine data area are always
 	// properly aligned
-	qcvm->edict_size += sizeof(void *) - 1;
-	qcvm->edict_size &= ~(sizeof(void *) - 1);
+	qcvm->edict_size = Q_ALIGN(qcvm->edict_size, sizeof(void *));
 
 	PR_InitHashTables ();
 	PR_InitBuiltins ();
