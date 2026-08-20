@@ -2469,6 +2469,7 @@ void SaveData_Fill (savedata_t *save)
 	/* determine buffer size */
 	size = sizeof (*save->knownstrings) * qcvm->numknownstrings;
 	size += sizeof (*save->globals) * qcvm->progs->numglobals;
+	size = Q_ALIGN(size, sizeof(void *));
 	size += qcvm->edict_size * qcvm->num_edicts;
 
 	for (i = 0; i < MAX_LIGHTSTYLES; i++)
@@ -2504,6 +2505,7 @@ void SaveData_Fill (savedata_t *save)
 	memcpy (save->globals, qcvm->globals, sizeof (*save->globals) * qcvm->progs->numglobals);
 
 	/* edicts */
+	ofs = Q_ALIGN(ofs, sizeof(void *));
 	save->edicts = (edict_t *) (save->buffer + ofs);
 	ofs += qcvm->num_edicts * qcvm->edict_size;
 	memcpy (save->edicts, qcvm->edicts, qcvm->num_edicts * qcvm->edict_size);
