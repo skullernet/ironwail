@@ -42,6 +42,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	WADFILENAME "gfx.wad" //johnfitz -- filename is now hard-coded for honesty
 
+#pragma pack(push, 1)
+
 typedef struct
 {
 	int			width, height;
@@ -65,6 +67,8 @@ typedef struct
 	char		pad1, pad2;
 	char		name[16];				// must be null terminated
 } lumpinfo_t;
+
+#pragma pack(pop)
 
 extern	int			wad_numlumps;
 extern	lumpinfo_t	*wad_lumps;

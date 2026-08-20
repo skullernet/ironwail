@@ -94,6 +94,8 @@ typedef struct
 
 #define	HEADER_LUMPS	15
 
+#pragma pack(push, 1)
+
 typedef struct
 {
 	float		mins[3], maxs[3];
@@ -318,6 +320,7 @@ typedef struct
 	byte		ambient_level[NUM_AMBIENTS];
 } dl2leaf_t;
 
+#pragma pack(pop)
 
 #endif	/* __BSPFILE_H */
 

@@ -61,6 +61,8 @@ typedef enum { ALIAS_SINGLE=0, ALIAS_GROUP } aliasframetype_t;
 
 typedef enum { ALIAS_SKIN_SINGLE=0, ALIAS_SKIN_GROUP } aliasskintype_t;
 
+#pragma pack(push, 1)
+
 typedef struct {
 	int			ident;
 	int			version;
@@ -133,6 +135,8 @@ typedef struct {
 typedef struct {
 	aliasskintype_t	type;
 } daliasskintype_t;
+
+#pragma pack(pop)
 
 #define IDPOLYHEADER	(('O'<<24)+('P'<<16)+('D'<<8)+'I')
 														// little-endian "IDPO"
