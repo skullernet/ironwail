@@ -73,7 +73,7 @@ static qboolean is_apetag(const unsigned char *data, size_t length) {
     if (length < 32 || memcmp(data,"APETAGEX",8) != 0) {
         return false;
     }
-    v = (unsigned)((data[11]<<24) | (data[10]<<16) | (data[9]<<8) | data[8]); /* version */
+    v = Q_RL32(&data[8]); /* version */
     if (v != 2000U && v != 1000U) {
         return false;
     }
@@ -85,9 +85,9 @@ static qboolean is_apetag(const unsigned char *data, size_t length) {
 }
 static long get_ape_len(const unsigned char *data) {
     unsigned int flags, version;
-    long size = (long)((data[15]<<24) | (data[14]<<16) | (data[13]<<8) | data[12]);
-    version = (unsigned)((data[11]<<24) | (data[10]<<16) | (data[9]<<8) | data[8]);
-    flags = (unsigned)((data[23]<<24) | (data[22]<<16) | (data[21]<<8) | data[20]);
+    long size = Q_RL32(&data[12]);
+    version = Q_RL32(&data[8]);
+    flags = Q_RL32(&data[20]);
     if (version == 2000U && (flags & (1U<<31))) size += 32; /* header present. */
     return size;
 }
@@ -179,8 +179,8 @@ static long get_musicmatch_len(snd_stream_t *stream) {
 
     FS_fseek(&stream->fh, -68, SEEK_END);
     FS_fread(buf, 1, 20, &stream->fh);
-    imgext_ofs  = (int)((buf[3] <<24) | (buf[2] <<16) | (buf[1] <<8) | buf[0] );
-    version_ofs = (int)((buf[15]<<24) | (buf[14]<<16) | (buf[13]<<8) | buf[12]);
+    imgext_ofs  = Q_RL32(buf);
+    version_ofs = Q_RL32(&buf[12]);
     if (version_ofs <= imgext_ofs) return -1;
     if (version_ofs <= 0 || imgext_ofs <= 0) return -1;
     /* Try finding the version info section:
@@ -216,7 +216,7 @@ static long get_musicmatch_len(snd_stream_t *stream) {
     if (stream->fh.length < len) return -1;
     FS_fseek(&stream->fh, -len, SEEK_END);
     FS_fread(buf, 1, 8, &stream->fh);
-    j = (int)((buf[7] <<24) | (buf[6] <<16) | (buf[5] <<8) | buf[4]);
+    j = Q_RL32(&buf[4]);
     if (j < 0) return -1;
     /* verify image size: */
     /* without this, we may land at a wrong place. */

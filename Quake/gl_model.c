@@ -401,7 +401,7 @@ static qmodel_t *Mod_LoadModel (qmodel_t *mod, qboolean crash)
 // call the apropriate loader
 	mod->needload = false;
 
-	mod_type = (buf[0] | (buf[1] << 8) | (buf[2] << 16) | (buf[3] << 24));
+	mod_type = Q_RL32(buf);
 	switch (mod_type)
 	{
 	case IDPOLYHEADER:

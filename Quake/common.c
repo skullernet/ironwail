@@ -713,41 +713,22 @@ void MSG_WriteByte (sizebuf_t *sb, int c)
 
 void MSG_WriteShort (sizebuf_t *sb, int c)
 {
-	byte	*buf;
-
 #ifdef PARANOID
 	if (c < ((short)0x8000) || c > (short)0x7fff)
 		Sys_Error ("MSG_WriteShort: range error");
 #endif
 
-	buf = (byte *) SZ_GetSpace (sb, 2);
-	buf[0] = c&0xff;
-	buf[1] = c>>8;
+	Q_WL16(SZ_GetSpace (sb, 2), c);
 }
 
 void MSG_WriteLong (sizebuf_t *sb, int c)
 {
-	byte	*buf;
-
-	buf = (byte *) SZ_GetSpace (sb, 4);
-	buf[0] = c&0xff;
-	buf[1] = (c>>8)&0xff;
-	buf[2] = (c>>16)&0xff;
-	buf[3] = c>>24;
+	Q_WL32(SZ_GetSpace (sb, 4), c);
 }
 
 void MSG_WriteFloat (sizebuf_t *sb, float f)
 {
-	union
-	{
-		float	f;
-		int	l;
-	} dat;
-
-	dat.f = f;
-	dat.l = LittleLong (dat.l);
-
-	SZ_Write (sb, &dat.l, 4);
+	Q_WL32F(SZ_GetSpace (sb, 4), f);
 }
 
 void MSG_WriteString (sizebuf_t *sb, const char *s)
@@ -861,9 +842,7 @@ int MSG_ReadShort (void)
 		return -1;
 	}
 
-	c = (short)(net_message.data[msg_readcount]
-			+ (net_message.data[msg_readcount+1]<<8));
-
+	c = (signed short)Q_RL16(net_message.data + msg_readcount);
 	msg_readcount += 2;
 
 	return c;
@@ -879,11 +858,7 @@ int MSG_ReadLong (void)
 		return -1;
 	}
 
-	c = net_message.data[msg_readcount]
-			+ (net_message.data[msg_readcount+1]<<8)
-			+ (net_message.data[msg_readcount+2]<<16)
-			+ (net_message.data[msg_readcount+3]<<24);
-
+	c = Q_RL32(net_message.data + msg_readcount);
 	msg_readcount += 4;
 
 	return c;
@@ -891,22 +866,18 @@ int MSG_ReadLong (void)
 
 float MSG_ReadFloat (void)
 {
-	union
-	{
-		byte	b[4];
-		float	f;
-		int	l;
-	} dat;
+	float f;
 
-	dat.b[0] = net_message.data[msg_readcount];
-	dat.b[1] = net_message.data[msg_readcount+1];
-	dat.b[2] = net_message.data[msg_readcount+2];
-	dat.b[3] = net_message.data[msg_readcount+3];
+	if (msg_readcount+4 > net_message.cursize)
+	{
+		msg_badread = true;
+		return -1;
+	}
+
+	f = Q_RL32F(net_message.data + msg_readcount);
 	msg_readcount += 4;
 
-	dat.l = LittleLong (dat.l);
-
-	return dat.f;
+	return f;
 }
 
 const char *MSG_ReadString (void)

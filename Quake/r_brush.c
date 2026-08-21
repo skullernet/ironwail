@@ -709,7 +709,7 @@ void GL_BuildBModelVertexBuffer (void)
 					vert->st[2] = s;
 					vert->st[3] = t;
 					vert->lmofs = lmofs;
-					vert->styles = fa->styles[0] | (fa->styles[1] << 8) | (fa->styles[2] << 16) | (fa->styles[3] << 24);
+					vert->styles = Q_RL32(fa->styles);
 				}
 				else
 				{

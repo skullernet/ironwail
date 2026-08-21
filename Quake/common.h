@@ -217,6 +217,54 @@ static inline void ToggleBit (uint32_t *arr, uint32_t i)
 
 //============================================================================
 
+static inline uint16_t Q_RN16(const void *p)
+{
+	uint16_t v; memcpy(&v, p, sizeof(v)); return v;
+}
+
+static inline uint32_t Q_RN32(const void *p)
+{
+	uint32_t v; memcpy(&v, p, sizeof(v)); return v;
+}
+
+static inline void Q_WN16(void *p, uint16_t v)
+{
+	memcpy(p, &v, sizeof(v));
+}
+
+static inline void Q_WN32(void *p, uint32_t v)
+{
+	memcpy(p, &v, sizeof(v));
+}
+
+typedef union {
+	float		f;
+	uint32_t	l;
+} floatlong_t;
+
+static inline float LongAsFloat(uint32_t l)
+{
+	floatlong_t dat; dat.l = l; return dat.f;
+}
+
+static inline uint32_t FloatAsLong(float f)
+{
+	floatlong_t dat; dat.f = f; return dat.l;
+}
+
+#define Q_RN8(p)	(*(const uint8_t *)(p))
+#define Q_WN8(p, v)	(*(uint8_t *)(p) = (v))
+
+#define Q_RL16(p)	SDL_SwapLE16(Q_RN16(p))
+#define Q_RL32(p)	SDL_SwapLE32(Q_RN32(p))
+#define Q_RL32F(p)	LongAsFloat(Q_RL32(p))
+
+#define Q_WL16(p, v)	Q_WN16(p, SDL_SwapLE16(v))
+#define Q_WL32(p, v)	Q_WN32(p, SDL_SwapLE32(v))
+#define Q_WL32F(p, v)	Q_WL32(p, FloatAsLong(v))
+
+//============================================================================
+
 void MSG_WriteChar (sizebuf_t *sb, int c);
 void MSG_WriteByte (sizebuf_t *sb, int c);
 void MSG_WriteShort (sizebuf_t *sb, int c);
