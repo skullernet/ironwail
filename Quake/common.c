@@ -966,6 +966,12 @@ void SZ_Alloc (sizebuf_t *buf, int startsize)
 	buf->cursize = 0;
 }
 
+void SZ_InitRead (sizebuf_t *buf, void *data, int cursize)
+{
+	memset (buf, 0, sizeof (*buf));
+	buf->data = data;
+	buf->cursize = cursize;
+}
 
 void SZ_Free (sizebuf_t *buf)
 {
@@ -980,17 +986,20 @@ void SZ_Clear (sizebuf_t *buf)
 	buf->cursize = 0;
 }
 
-void *SZ_GetSpace (sizebuf_t *buf, int length)
+void *SZ_GetSpace (sizebuf_t *buf, size_t length)
 {
 	void	*data;
 
-	if (buf->cursize + length > buf->maxsize)
+	if (buf->cursize > buf->maxsize)
+		Sys_Error ("SZ_GetSpace: already overflowed");
+
+	if (length > buf->maxsize - buf->cursize)
 	{
 		if (!buf->allowoverflow)
 			Host_Error ("SZ_GetSpace: overflow without allowoverflow set"); // ericw -- made Host_Error to be less annoying
 
 		if (length > buf->maxsize)
-			Sys_Error ("SZ_GetSpace: %i is > full buffer size", length);
+			Sys_Error ("SZ_GetSpace: %" Q_PRIzu " is > full buffer size", length);
 
 		buf->overflowed = true;
 		Con_Printf ("SZ_GetSpace: overflow\n");
@@ -1003,7 +1012,7 @@ void *SZ_GetSpace (sizebuf_t *buf, int length)
 	return data;
 }
 
-void SZ_Write (sizebuf_t *buf, const void *data, int length)
+void SZ_Write (sizebuf_t *buf, const void *data, size_t length)
 {
 	Q_memcpy (SZ_GetSpace(buf,length),data,length);
 }
@@ -1012,7 +1021,7 @@ void SZ_Print (sizebuf_t *buf, const char *data)
 {
 	int		len = Q_strlen(data) + 1;
 
-	if (buf->data[buf->cursize-1])
+	if (buf->cursize < 1 || buf->data[buf->cursize-1])
 	{	/* no trailing 0 */
 		Q_memcpy ((byte *)SZ_GetSpace(buf, len  )  , data, len);
 	}
@@ -1022,6 +1031,46 @@ void SZ_Print (sizebuf_t *buf, const char *data)
 	}
 }
 
+void *SZ_ReadData(sizebuf_t *buf, size_t length)
+{
+	void	*data;
+
+	if (buf->readcount > buf->cursize)
+		return NULL;
+
+	if (length > buf->cursize - buf->readcount) {
+		buf->readcount = buf->cursize;
+		return NULL;
+	}
+
+	data = buf->data + buf->readcount;
+	buf->readcount += length;
+	return data;
+}
+
+int SZ_ReadByte(sizebuf_t *sb)
+{
+	void *buf = SZ_ReadData(sb, 1);
+	return buf ? Q_RN8(buf) : -1;
+}
+
+int SZ_ReadShort(sizebuf_t *sb)
+{
+	void *buf = SZ_ReadData(sb, 2);
+	return buf ? Q_RL16(buf) : -1;
+}
+
+int SZ_ReadLong(sizebuf_t *sb)
+{
+	void *buf = SZ_ReadData(sb, 4);
+	return buf ? Q_RL32(buf) : -1;
+}
+
+float SZ_ReadFloat(sizebuf_t *sb)
+{
+	void *buf = SZ_ReadData(sb, 4);
+	return buf ? Q_RL32F(buf) : -1.0f;
+}
 
 //============================================================================
 

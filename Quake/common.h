@@ -119,14 +119,22 @@ typedef struct sizebuf_s
 	byte		*data;
 	int		maxsize;
 	int		cursize;
+	int		readcount;
 } sizebuf_t;
 
 void SZ_Alloc (sizebuf_t *buf, int startsize);
+void SZ_InitRead (sizebuf_t *buf, void *data, int cursize);
 void SZ_Free (sizebuf_t *buf);
 void SZ_Clear (sizebuf_t *buf);
-void *SZ_GetSpace (sizebuf_t *buf, int length);
-void SZ_Write (sizebuf_t *buf, const void *data, int length);
+void *SZ_GetSpace (sizebuf_t *buf, size_t length);
+void SZ_Write (sizebuf_t *buf, const void *data, size_t length);
 void SZ_Print (sizebuf_t *buf, const char *data);	// strcats onto the sizebuf
+
+void *SZ_ReadData(sizebuf_t *buf, size_t length);
+int SZ_ReadByte(sizebuf_t *sb);
+int SZ_ReadShort(sizebuf_t *sb);
+int SZ_ReadLong(sizebuf_t *sb);
+float SZ_ReadFloat(sizebuf_t *sb);
 
 //============================================================================
 
