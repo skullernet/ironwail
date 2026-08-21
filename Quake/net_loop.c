@@ -57,8 +57,8 @@ void Loop_SearchForHosts (qboolean xmit)
 	if (Q_strcmp(hostname.string, "UNNAMED") == 0)
 		Q_strcpy(hostcache[0].name, "local");
 	else
-		Q_strcpy(hostcache[0].name, hostname.string);
-	Q_strcpy(hostcache[0].map, sv.name);
+		q_strlcpy(hostcache[0].name, hostname.string, sizeof(hostcache[0].name));
+	q_strlcpy(hostcache[0].map, sv.name, sizeof(hostcache[0].map));
 	hostcache[0].users = net_activeconnections;
 	hostcache[0].maxusers = svs.maxclients;
 	hostcache[0].driver = net_driverlevel;

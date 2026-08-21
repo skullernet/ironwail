@@ -883,22 +883,29 @@ float MSG_ReadFloat (void)
 const char *MSG_ReadString (void)
 {
 	static char	string[2048];
+	MSG_ReadStringBuffer(string, sizeof(string));
+	return string;
+}
+
+size_t MSG_ReadStringBuffer (char *string, size_t size)
+{
 	int		c;
 	size_t		l;
 
 	l = 0;
-	do
+	while (1)
 	{
 		c = MSG_ReadByte ();
 		if (c == -1 || c == 0)
 			break;
-		string[l] = c;
-		l++;
-	} while (l < sizeof(string) - 1);
+		if (++l < size)
+			*string++ = c;
+	}
 
-	string[l] = 0;
+	if (size)
+		*string = 0;
 
-	return string;
+	return l;
 }
 
 //johnfitz -- original behavior, 13.3 fixed point coords, max range +-4096

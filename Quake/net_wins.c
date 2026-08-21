@@ -151,7 +151,7 @@ sys_socket_t WINS_Init (void)
 			myAddr = inet_addr(com_argv[i + 1]);
 			if (myAddr == INADDR_NONE)
 				Sys_Error ("%s is not a valid IP address", com_argv[i + 1]);
-			strcpy(my_tcpip_address, com_argv[i + 1]);
+			q_strlcpy(my_tcpip_address, com_argv[i + 1], sizeof(my_tcpip_address));
 		}
 		else
 		{
@@ -284,7 +284,7 @@ static int PartialIPAddress (const char *in, struct qsockaddr *hostaddr)
 
 	buff[0] = '.';
 	b = buff;
-	strcpy(buff+1, in);
+	q_strlcpy(buff+1, in, sizeof(buff)-1);
 	if (buff[1] == '.')
 		b++;
 
@@ -479,7 +479,7 @@ int WINS_GetNameFromAddr (struct qsockaddr *addr, char *name)
 						sizeof(struct in_addr), AF_INET);
 	if (hostentry)
 	{
-		Q_strncpy (name, (char *)hostentry->h_name, NET_NAMELEN - 1);
+		q_strlcpy (name, (char *)hostentry->h_name, NET_NAMELEN);
 		return 0;
 	}
 

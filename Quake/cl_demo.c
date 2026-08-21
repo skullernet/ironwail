@@ -459,7 +459,7 @@ static int CL_GetDemoMessage (void)
 	}
 
 	net_message.cursize = LittleLong (net_message.cursize);
-	if (net_message.cursize > MAX_MSGLEN)
+	if (net_message.cursize < 0 || net_message.cursize > MAX_MSGLEN)
 		Sys_Error ("Demo message > MAX_MSGLEN");
 	if (fread (net_message.data, net_message.cursize, 1, cls.demofile) != 1)
 	{

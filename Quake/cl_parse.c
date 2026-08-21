@@ -1216,7 +1216,7 @@ void CL_ParseServerMessage (void)
 			i = MSG_ReadByte ();
 			if (i < 0 || i >= cl.maxclients)
 				Host_Error ("CL_ParseServerMessage: svc_updatename > MAX_SCOREBOARD");
-			q_strlcpy (cl.scores[i].name, MSG_ReadString(), MAX_SCOREBOARDNAME);
+			MSG_ReadStringBuffer (cl.scores[i].name, sizeof(cl.scores[i].name));
 			break;
 
 		case svc_updatefrags:

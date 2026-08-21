@@ -285,6 +285,7 @@ int MSG_ReadShort (void);
 int MSG_ReadLong (void);
 float MSG_ReadFloat (void);
 const char *MSG_ReadString (void);
+size_t MSG_ReadStringBuffer (char *string, size_t size);
 
 float MSG_ReadCoord (unsigned int flags);
 float MSG_ReadAngle (unsigned int flags);

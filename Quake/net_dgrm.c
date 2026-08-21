@@ -285,7 +285,7 @@ int Datagram_SendUnreliableMessage (qsocket_t *sock, sizebuf_t *data)
 
 int	Datagram_GetMessage (qsocket_t *sock)
 {
-	unsigned int	length;
+	unsigned int	length, packetlength;
 	unsigned int	flags;
 	int				ret = 0;
 	struct qsockaddr readaddr;
@@ -327,12 +327,19 @@ int	Datagram_GetMessage (qsocket_t *sock)
 			continue;
 		}
 
+		packetlength = length;
 		length = BigLong(packetBuffer.length);
 		flags = length & (~NETFLAG_LENGTH_MASK);
 		length &= NETFLAG_LENGTH_MASK;
 
 		if (flags & NETFLAG_CTL)
 			continue;
+
+		if (length != packetlength)
+		{
+			Con_Printf("Invalid packet length received\n");
+			continue;
+		}
 
 		sequence = BigLong(packetBuffer.sequence);
 		packetsReceived++;
@@ -354,6 +361,12 @@ int	Datagram_GetMessage (qsocket_t *sock)
 			sock->unreliableReceiveSequence = sequence + 1;
 
 			length -= NET_HEADERSIZE;
+
+			if (length > net_message.maxsize) {
+				Con_Printf("Oversize datagram received\n");
+				ret = 0;
+				break;
+			}
 
 			SZ_Clear (&net_message);
 			SZ_Write (&net_message, packetBuffer.data, length);
@@ -408,6 +421,11 @@ int	Datagram_GetMessage (qsocket_t *sock)
 			sock->receiveSequence++;
 
 			length -= NET_HEADERSIZE;
+
+			if (sock->receiveMessageLength + length > NET_MAXMESSAGE) {
+				Con_Printf("Oversize reliable message received\n");
+				return -1;
+			}
 
 			if (flags & NETFLAG_EOM)
 			{
@@ -557,11 +575,11 @@ static void Test_Poll (void *unused)
 			Sys_Error("Unexpected response to Player Info request\n");
 
 		MSG_ReadByte(); /* playerNumber */
-		Q_strcpy(name, MSG_ReadString());
+		MSG_ReadStringBuffer(name, sizeof(name));
 		colors = MSG_ReadLong();
 		frags = MSG_ReadLong();
 		connectTime = MSG_ReadLong();
-		Q_strcpy(address, MSG_ReadString());
+		MSG_ReadStringBuffer(address, sizeof(address));
 
 		Con_Printf("%s\n  frags:%3i  colors:%d %d  time:%d\n  %s\n", name, frags, colors >> 4, colors & 0x0f, connectTime / 60, address);
 	}
@@ -686,10 +704,10 @@ static void Test2_Poll (void *unused)
 	if (MSG_ReadByte() != CCREP_RULE_INFO)
 		goto Error;
 
-	Q_strcpy(name, MSG_ReadString());
+	MSG_ReadStringBuffer(name, sizeof(name));
 	if (name[0] == 0)
 		goto Done;
-	Q_strcpy(value, MSG_ReadString());
+	MSG_ReadStringBuffer(value, sizeof(value));
 
 	Con_Printf("%-16.16s  %-16.16s\n", name, value);
 
@@ -1180,8 +1198,8 @@ static void _Datagram_SearchForHosts (qboolean xmit)
 
 		// add it
 		hostCacheCount++;
-		Q_strcpy(hostcache[n].name, MSG_ReadString());
-		Q_strcpy(hostcache[n].map, MSG_ReadString());
+		MSG_ReadStringBuffer(hostcache[n].name, sizeof(hostcache[n].name));
+		MSG_ReadStringBuffer(hostcache[n].map, sizeof(hostcache[n].map));
 		hostcache[n].users = MSG_ReadByte();
 		hostcache[n].maxusers = MSG_ReadByte();
 		if (MSG_ReadByte() != NET_PROTOCOL_VERSION)
