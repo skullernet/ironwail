@@ -2070,24 +2070,25 @@ Mod_LoadMarksurfaces
 */
 static void Mod_LoadMarksurfaces (lump_t *l, int bsp2)
 {
-	int		i, j, count;
+	int		i, count;
+	byte	*in;
 	int		*out;
+
+	in = mod_base + l->fileofs;
 	if (bsp2)
 	{
-		unsigned int *in = (unsigned int *)(mod_base + l->fileofs);
-
-		if (l->filelen % sizeof(*in))
+		if (l->filelen % sizeof(uint32_t))
 			Host_Error ("Mod_LoadMarksurfaces: funny lump size in %s",loadmodel->name);
 
-		count = l->filelen / sizeof(*in);
+		count = l->filelen / sizeof(uint32_t);
 		out = (int*)Hunk_AllocNameNoFill ( count*sizeof(*out), loadname);
 
 		loadmodel->marksurfaces = out;
 		loadmodel->nummarksurfaces = count;
 
-		for (i=0 ; i<count ; i++)
+		for (i=0 ; i<count ; i++, in += 4)
 		{
-			j = LittleLong(in[i]);
+			uint32_t j = Q_RL32(in);
 			if (j >= loadmodel->numsurfaces)
 				Host_Error ("Mod_LoadMarksurfaces: bad surface number");
 			out[i] = j;
@@ -2095,12 +2096,10 @@ static void Mod_LoadMarksurfaces (lump_t *l, int bsp2)
 	}
 	else
 	{
-		short *in = (short *)(mod_base + l->fileofs);
-
-		if (l->filelen % sizeof(*in))
+		if (l->filelen % sizeof(uint16_t))
 			Host_Error ("Mod_LoadMarksurfaces: funny lump size in %s",loadmodel->name);
 
-		count = l->filelen / sizeof(*in);
+		count = l->filelen / sizeof(uint16_t);
 		out = (int*)Hunk_AllocNameNoFill ( count*sizeof(*out), loadname);
 
 		loadmodel->marksurfaces = out;
@@ -2111,9 +2110,9 @@ static void Mod_LoadMarksurfaces (lump_t *l, int bsp2)
 			Con_DWarning ("%i marksurfaces exceeds standard limit of 32767.\n", count);
 		//johnfitz
 
-		for (i=0 ; i<count ; i++)
+		for (i=0 ; i<count ; i++, in += 2)
 		{
-			j = (unsigned short)LittleShort(in[i]); //johnfitz -- explicit cast as unsigned short
+			uint32_t j = Q_RL16(in);
 			if (j >= loadmodel->numsurfaces)
 				Sys_Error ("Mod_LoadMarksurfaces: bad surface number");
 			out[i] = j;
@@ -2129,19 +2128,20 @@ Mod_LoadSurfedges
 static void Mod_LoadSurfedges (lump_t *l)
 {
 	int		i, count;
-	int		*in, *out;
+	byte	*in;
+	int		*out;
 
-	in = (int *)(mod_base + l->fileofs);
-	if (l->filelen % sizeof(*in))
+	in = mod_base + l->fileofs;
+	if (l->filelen % sizeof(uint32_t))
 		Sys_Error ("MOD_LoadBmodel: funny lump size in %s",loadmodel->name);
-	count = l->filelen / sizeof(*in);
+	count = l->filelen / sizeof(uint32_t);
 	out = (int *) Hunk_AllocNameNoFill ( count*sizeof(*out), loadname);
 
 	loadmodel->surfedges = out;
 	loadmodel->numsurfedges = count;
 
-	for (i=0 ; i<count ; i++)
-		out[i] = LittleLong (in[i]);
+	for (i=0 ; i<count ; i++, in += 4)
+		out[i] = Q_RL32(in);
 }
 
 
