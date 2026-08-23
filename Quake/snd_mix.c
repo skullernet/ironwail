@@ -223,7 +223,7 @@ static void S_UpdateFilter(filter_t *filter, int M, float f_c)
 		filter->kernel = (float *) calloc(filter->kernelsize, sizeof(float));
 
 		if (!filter->memory || !filter->kernel)
-			Sys_Error ("S_UpdateFilter: out of memory (%" SDL_PRIu64 " bytes)", (uint64_t)(filter->kernelsize * sizeof (float)));
+			Sys_Error ("S_UpdateFilter: out of memory (%" Q_PRIzu " bytes)", filter->kernelsize * sizeof (float));
 
 		S_MakeBlackmanWindowKernel(filter->kernel, M, f_c);
 	}

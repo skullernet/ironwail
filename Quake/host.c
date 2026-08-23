@@ -701,7 +701,7 @@ static void AsyncQueue_Init (asyncqueue_t *queue, size_t capacity)
 	capacity *= sizeof (queue->procs[0]);
 	queue->procs = (asyncproc_t *) malloc (capacity);
 	if (!queue->procs)
-		Sys_Error ("AsyncQueue_Init: malloc failed on %" SDL_PRIu64 " bytes", (uint64_t) capacity);
+		Sys_Error ("AsyncQueue_Init: malloc failed on %" Q_PRIzu " bytes", capacity);
 
 	queue->mutex = SDL_CreateMutex ();
 	if (!queue->mutex)

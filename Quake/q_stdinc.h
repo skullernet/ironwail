@@ -81,6 +81,15 @@
 #endif
 #endif
 
+/* format specifier for printing size_t portably */
+#if (defined _WIN64)
+#define Q_PRIzu	"I64u"
+#elif (defined _WIN32)
+#define Q_PRIzu	"I32u"
+#else
+#define Q_PRIzu	"zu"
+#endif
+
 #define	Q_MAXCHAR	((char)0x7f)
 #define	Q_MAXSHORT	((short)0x7fff)
 #define	Q_MAXINT	((int)0x7fffffff)

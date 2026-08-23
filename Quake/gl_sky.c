@@ -476,7 +476,7 @@ void Sky_LoadSkyBox (const char *name)
 		newsky.cubemap_pixels = (byte *) malloc (aligneddatasize + sizeof (void *) * 6);
 		if (!newsky.cubemap_pixels)
 		{
-			Con_Warning ("Sky_LoadSkyBox: out of memory on %" SDL_PRIu64 " bytes\n", (uint64_t) numfacebytes);
+			Con_Warning ("Sky_LoadSkyBox: out of memory on %" Q_PRIzu " bytes\n", numfacebytes);
 			skybox = NULL;
 			Hunk_FreeToLowMark (mark);
 			return;
