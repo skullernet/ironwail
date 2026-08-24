@@ -463,6 +463,9 @@ extern	char	com_gamedir[MAX_OSPATH];
 extern	char	com_nightdivedir[MAX_OSPATH];
 extern	THREAD_LOCAL int	file_from_pak;	// global indicating that file came from a pak
 
+size_t COM_NormalizePathBuffer(char *out, const char *in, size_t size);
+#define COM_NormalizePath(path) COM_NormalizePathBuffer(path, path, -1)
+
 void COM_WriteFile (const char *filename, const void *data, int len);
 qboolean COM_WriteFile_OSPath (const char *filename, const void *data, size_t len);
 int COM_OpenFile (const char *filename, int *handle, unsigned int *path_id);

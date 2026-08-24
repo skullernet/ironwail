@@ -345,7 +345,7 @@ Host_WriteConfig_f
 void Host_WriteConfig_f (void)
 {
 	char filename[MAX_QPATH];
-	q_strlcpy (filename, Cmd_Argc () >= 2 ? Cmd_Argv (1) : CONFIG_NAME, sizeof (filename));
+	COM_NormalizePathBuffer (filename, Cmd_Argc () >= 2 ? Cmd_Argv (1) : CONFIG_NAME, sizeof (filename));
 	COM_AddExtension (filename, ".cfg", sizeof (filename));
 	Host_WriteConfigurationToFile (filename);
 }

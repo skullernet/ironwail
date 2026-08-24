@@ -860,7 +860,7 @@ static void Con_Dump_f (void)
 	char	relname[MAX_OSPATH];
 	char	name[MAX_OSPATH];
 
-	q_strlcpy (relname, Cmd_Argc () >= 2 ? Cmd_Argv (1) : "condump.txt", sizeof (relname));
+	COM_NormalizePathBuffer (relname, Cmd_Argc () >= 2 ? Cmd_Argv (1) : "condump.txt", sizeof (relname));
 	COM_AddExtension (relname, ".txt", sizeof (relname));
 	q_snprintf (name, sizeof(name), "%s/%s", com_gamedir, relname);
 	f = Sys_fopen (name, "w");

@@ -767,6 +767,8 @@ static void Modlist_RegisterAddons (void *param)
 		gamedir		= JSON_FindString (entry, "gamedir");
 		if (!download || !gamedir)
 			continue;
+		if (strchr(gamedir, '/') || strchr(gamedir, '\\'))
+			continue;
 
 		name		= JSON_FindString (entry, "name");
 		author		= JSON_FindString (entry, "author");
@@ -2417,12 +2419,6 @@ static void Host_Savegame_f (void)
 		return;
 	}
 
-	if (strstr(Cmd_Argv(1), ".."))
-	{
-		Con_Printf ("Relative pathnames are not allowed.\n");
-		return;
-	}
-
 	for (i=0 ; i<svs.maxclients ; i++)
 	{
 		if (svs.clients[i].active && (svs.clients[i].edict->v.health <= 0) )
@@ -2432,7 +2428,7 @@ static void Host_Savegame_f (void)
 		}
 	}
 
-	q_strlcpy (relname, Cmd_Argv(1), sizeof(relname));
+	COM_NormalizePathBuffer (relname, Cmd_Argv(1), sizeof(relname));
 	COM_AddExtension (relname, ".sav", sizeof(relname));
 	q_snprintf (name, sizeof(name), "%s/%s", com_gamedir, relname);
 
@@ -2509,12 +2505,6 @@ static void Host_Loadgame_f (void)
 		return;
 	}
 	
-	if (strstr(Cmd_Argv(1), ".."))
-	{
-		Con_Printf ("Relative pathnames are not allowed.\n");
-		return;
-	}
-
 	// When loading a file that doesn't belong to a mod dir we only accept KEX saves
 	if (Cmd_Argc () >= 3 && q_strcasecmp (Cmd_Argv (2), "kex") == 0)
 		kexonly = true;
@@ -2527,7 +2517,7 @@ static void Host_Loadgame_f (void)
 
 	cls.demonum = -1;		// stop demo loop in case this fails
 
-	q_strlcpy (relname, Cmd_Argv(1), sizeof(relname));
+	COM_NormalizePathBuffer (relname, Cmd_Argv(1), sizeof(relname));
 	COM_AddExtension (relname, ".sav", sizeof(relname));
 
 	q_snprintf (name, sizeof(name), "%s/%s", com_gamedir, relname);

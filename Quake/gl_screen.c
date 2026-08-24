@@ -1834,6 +1834,7 @@ static void SCR_ScreenShot_f (void)
 
 	// find a file name to save it to
 		has_vars = SCR_ExpandVariables (cl_screenshotname.string, basename, sizeof (basename));
+		COM_NormalizePath (basename);
 		if (!basename[0])
 			q_strlcpy (basename, SCREENSHOT_PREFIX, sizeof (basename));
 

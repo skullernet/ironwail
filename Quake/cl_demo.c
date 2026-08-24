@@ -580,12 +580,6 @@ void CL_Record_f (void)
 		return;
 	}
 
-	if (strstr(Cmd_Argv(1), ".."))
-	{
-		Con_Printf ("Relative pathnames are not allowed.\n");
-		return;
-	}
-
 	if (c == 2 && cls.state == ca_connected)
 	{
 #if 0
@@ -611,7 +605,7 @@ void CL_Record_f (void)
 	}
 
 	// save the demo name here, before potentially loading a new map (which would change argv[1])
-	q_strlcpy (relname, Cmd_Argv(1), sizeof(relname));
+	COM_NormalizePathBuffer (relname, Cmd_Argv(1), sizeof(relname));
 
 	// start the map up
 	if (c > 2)

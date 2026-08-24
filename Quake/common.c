@@ -1040,21 +1040,96 @@ const char *COM_FirstPathSep (const char *path)
 }
 
 /*
-============
-COM_NormalizePath
+================
+COM_NormalizePathBuffer
 
-Replaces all path separators with forward slashes
-============
+Simplifies the path, converting backslashes to slashes and removing ./ and ../
+components, as well as duplicate slashes. Any leading/trailing slashes are
+also stripped. Returns size on overflow. May operate in place if in == out.
+
+	///foo       -> foo
+	foo/         -> foo
+	foo\bar      -> foo/bar
+	foo/..       -> <empty>
+	foo/../bar   -> bar
+	foo/./bar    -> foo/bar
+	foo//bar     -> foo/bar
+	./foo        -> foo
+================
 */
-void COM_NormalizePath (char *path)
+size_t COM_NormalizePathBuffer(char *out, const char *in, size_t size)
 {
-	while (*path)
-	{
-		if (Sys_IsPathSep (*path))
-			*path = '/';
-		path++;
+	char *start = out;
+	uint32_t pre = '/';
+
+	if (!size)
+		return 0;
+
+	while (1) {
+		int c = *in++;
+
+		if (c == '/' || c == '\\' || c == 0) {
+			if ((pre & 0xffffff) == (('/' << 16) | ('.' << 8) | '.')) {
+				if (out < start + 4) {
+					// can't go past root
+					out = start;
+					if (c == 0)
+						break;
+				} else {
+					out -= 4;
+					while (out > start && *out != '/')
+						out--;
+					if (c == 0)
+						break;
+					if (out > start)
+						// keep the slash
+						out++;
+				}
+				pre = '/';
+				continue;
+			}
+
+			if ((pre & 0xffff) == (('/' << 8) | '.')) {
+				// eat the dot
+				out--;
+				if (c == 0) {
+					if (out > start)
+						// eat the slash
+						out--;
+					break;
+				}
+				pre = '/';
+				continue;
+			}
+
+			if ((pre & 0xff) == '/') {
+				if (c == 0) {
+					if (out > start)
+						// eat the slash
+						out--;
+					break;
+				}
+				continue;
+			}
+
+			if (c == 0)
+				break;
+			c = '/';
+		}
+
+		if (out - start == size - 1) {
+			*out = 0;
+			return size;
+		}
+
+		pre = (pre << 8) | c;
+		*out++ = c;
 	}
+
+	*out = 0;
+	return out - start;
 }
+
 
 /*
 ============
@@ -1975,6 +2050,7 @@ static int COM_FindFile (const char *filename, int *handle, FILE **file,
 							unsigned int *path_id)
 {
 	searchpath_t	*search;
+	char		normalized[MAX_OSPATH];
 	char		netpath[MAX_OSPATH];
 	pack_t		*pak;
 	int			i;
@@ -1983,6 +2059,9 @@ static int COM_FindFile (const char *filename, int *handle, FILE **file,
 		Sys_Error ("COM_FindFile: both handle and file set");
 
 	file_from_pak = 0;
+
+	COM_NormalizePathBuffer(normalized, filename, sizeof(normalized));
+	filename = normalized;
 
 //
 // search through the path, one element at a time
@@ -2398,7 +2477,7 @@ static pack_t *COM_LoadPackFile (const char *packfile)
 	for (i = 0; i < numpackfiles; i++)
 	{
 		info[i].name[sizeof(info[i].name) - 1] = 0;
-		q_strlcpy (newfiles[i].name, info[i].name, sizeof(newfiles[i].name));
+		COM_NormalizePathBuffer (newfiles[i].name, info[i].name, sizeof(newfiles[i].name));
 		newfiles[i].filepos = LittleLong(info[i].filepos);
 		newfiles[i].filelen = LittleLong(info[i].filelen);
 		if (newfiles[i].filepos < 0 || newfiles[i].filelen < 0)
@@ -3039,8 +3118,7 @@ static qboolean COM_PatchCmdLine (const char *fullpath)
 		game[0] = '\0';
 	}
 
-	q_strlcpy (qpath, relpath, sizeof (qpath));
-	COM_NormalizePath (qpath);
+	COM_NormalizePathBuffer (qpath, relpath, sizeof (qpath));
 
 	// Check argument type
 	switch (type)
