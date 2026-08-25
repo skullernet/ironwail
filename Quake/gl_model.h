@@ -227,6 +227,7 @@ SPRITE MODELS
 ==============================================================================
 */
 
+#define	MAXSPRITEFRAMES	1024
 
 // FIXME: shorten these?
 typedef struct mspriteframe_s

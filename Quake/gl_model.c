@@ -3599,22 +3599,31 @@ static void Mod_LoadAliasModel (qmodel_t *mod, void *buffer)
 Mod_LoadSpriteFrame
 =================
 */
-static void *Mod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int framenum)
+static mspriteframe_t *Mod_LoadSpriteFrame (sizebuf_t *sz, int framenum)
 {
 	dspriteframe_t		*pinframe;
 	mspriteframe_t		*pspriteframe;
-	int					width, height, size, origin[2];
+	uint32_t			width, height;
+	int					origin[2];
 	char				name[64];
+	byte				*pixels;
 	src_offset_t			offset; //johnfitz
 
-	pinframe = (dspriteframe_t *)pin;
+	pinframe = SZ_ReadData(sz, sizeof(*pinframe));
+	if (!pinframe)
+		Host_Error("Mod_LoadSpriteFrame: end of file");
 
 	width = LittleLong (pinframe->width);
 	height = LittleLong (pinframe->height);
-	size = width * height;
+	if (Image_CheckSize(width, height))
+		Host_Error("Mod_LoadSpriteFrame: bad frame size: %u x %u", width, height);
+
+	offset = sz->readcount;
+	pixels = SZ_ReadData(sz, width * height);
+	if (!pixels)
+		Host_Error("Mod_LoadSpriteFrame: end of file");
 
 	pspriteframe = (mspriteframe_t *) Hunk_AllocName (sizeof (mspriteframe_t),loadname);
-	*ppframe = pspriteframe;
 
 	pspriteframe->width = width;
 	pspriteframe->height = height;
@@ -3632,13 +3641,12 @@ static void *Mod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int fram
 	//johnfitz
 
 	q_snprintf (name, sizeof(name), "%s:frame%i", loadmodel->name, framenum);
-	offset = (src_offset_t)(pinframe+1) - (src_offset_t)mod_base; //johnfitz
 	pspriteframe->gltexture =
 		TexMgr_LoadImage (loadmodel, name, width, height, SRC_INDEXED,
-				  (byte *)(pinframe + 1), loadmodel->name, offset,
+				  pixels, loadmodel->name, offset,
 				  TEXPREF_PAD | TEXPREF_ALPHA | TEXPREF_NOPICMIP); //johnfitz -- TexMgr
 
-	return (void *)((byte *)pinframe + sizeof (dspriteframe_t) + size);
+	return pspriteframe;
 }
 
 
@@ -3647,52 +3655,38 @@ static void *Mod_LoadSpriteFrame (void * pin, mspriteframe_t **ppframe, int fram
 Mod_LoadSpriteGroup
 =================
 */
-static void *Mod_LoadSpriteGroup (void * pin, mspriteframe_t **ppframe, int framenum, spriteframetype_t type)
+static mspriteframe_t *Mod_LoadSpriteGroup (sizebuf_t *sz, int framenum, spriteframetype_t type)
 {
 	dspritegroup_t		*pingroup;
 	mspritegroup_t		*pspritegroup;
 	int					i, numframes;
-	dspriteinterval_t	*pin_intervals;
-	float				*poutintervals;
-	void				*ptemp;
 
-	pingroup = (dspritegroup_t *)pin;
+	pingroup = SZ_ReadData(sz, sizeof(*pingroup));
+	if (!pingroup)
+		Host_Error ("Mod_LoadSpriteGroup: end of file");
 
 	numframes = LittleLong (pingroup->numframes);
-	if (type == SPR_ANGLED && numframes != 8)
-		Sys_Error ("Mod_LoadSpriteGroup: Bad # of frames: %d", numframes);
+	if ((type == SPR_ANGLED && numframes != 8) || numframes < 1 || numframes > MAXSPRITEFRAMES)
+		Host_Error ("Mod_LoadSpriteGroup: Bad # of frames: %d", numframes);
 
 	pspritegroup = (mspritegroup_t *) Hunk_AllocName (sizeof (mspritegroup_t) +
 				(numframes - 1) * sizeof (pspritegroup->frames[0]), loadname);
 
 	pspritegroup->numframes = numframes;
-
-	*ppframe = (mspriteframe_t *)pspritegroup;
-
-	pin_intervals = (dspriteinterval_t *)(pingroup + 1);
-
-	poutintervals = (float *) Hunk_AllocName (numframes * sizeof (float), loadname);
-
-	pspritegroup->intervals = poutintervals;
+	pspritegroup->intervals = (float *) Hunk_AllocName (numframes * sizeof (float), loadname);
 
 	for (i=0 ; i<numframes ; i++)
 	{
-		*poutintervals = LittleFloat (pin_intervals->interval);
-		if (*poutintervals <= 0.0)
-			Sys_Error ("Mod_LoadSpriteGroup: interval<=0");
-
-		poutintervals++;
-		pin_intervals++;
+		float f = SZ_ReadFloat(sz);
+		if (f <= 0.0f)
+			Host_Error ("Mod_LoadSpriteGroup: interval %f", f);
+		pspritegroup->intervals[i] = f;
 	}
-
-	ptemp = (void *)pin_intervals;
 
 	for (i=0 ; i<numframes ; i++)
-	{
-		ptemp = Mod_LoadSpriteFrame (ptemp, &pspritegroup->frames[i], framenum * 100 + i);
-	}
+		pspritegroup->frames[i] = Mod_LoadSpriteFrame (sz, framenum * 100 + i);
 
-	return ptemp;
+	return (mspriteframe_t *)pspritegroup;
 }
 
 
@@ -3705,25 +3699,28 @@ static void Mod_LoadSpriteModel (qmodel_t *mod, void *buffer)
 {
 	int					i;
 	int					version;
+	sizebuf_t			sz;
 	dsprite_t			*pin;
 	msprite_t			*psprite;
 	int					numframes;
-	int					size;
-	dspriteframetype_t	*pframetype;
 
-	pin = (dsprite_t *)buffer;
-	mod_base = (byte *)buffer; //johnfitz
+	SZ_InitRead(&sz, buffer, loadsize);
+
+	pin = SZ_ReadData(&sz, sizeof(*pin));
+	if (!pin)
+		Host_Error ("Mod_LoadSpriteModel: end of file");
 
 	version = LittleLong (pin->version);
 	if (version != SPRITE_VERSION)
-		Sys_Error ("%s has wrong version number "
+		Host_Error ("%s has wrong version number "
 				 "(%i should be %i)", mod->name, version, SPRITE_VERSION);
 
 	numframes = LittleLong (pin->numframes);
+	if (numframes < 1 || numframes > MAXSPRITEFRAMES)
+		Host_Error ("Mod_LoadSpriteModel: Invalid # of frames: %d", numframes);
 
-	size = sizeof (msprite_t) + (numframes - 1) * sizeof (psprite->frames);
-
-	psprite = (msprite_t *) Hunk_AllocName (size, loadname);
+	psprite = (msprite_t *) Hunk_AllocName (sizeof (msprite_t) +
+				(numframes - 1) * sizeof (psprite->frames[0]), loadname);
 
 	mod->cache.data = psprite;
 
@@ -3741,30 +3738,17 @@ static void Mod_LoadSpriteModel (qmodel_t *mod, void *buffer)
 //
 // load the frames
 //
-	if (numframes < 1)
-		Sys_Error ("Mod_LoadSpriteModel: Invalid # of frames: %d", numframes);
-
 	mod->numframes = numframes;
-
-	pframetype = (dspriteframetype_t *)(pin + 1);
 
 	for (i=0 ; i<numframes ; i++)
 	{
-		spriteframetype_t	frametype;
-
-		frametype = (spriteframetype_t) LittleLong (pframetype->type);
+		spriteframetype_t frametype = SZ_ReadLong(&sz);
 		psprite->frames[i].type = frametype;
 
 		if (frametype == SPR_SINGLE)
-		{
-			pframetype = (dspriteframetype_t *)
-					Mod_LoadSpriteFrame (pframetype + 1, &psprite->frames[i].frameptr, i);
-		}
+			psprite->frames[i].frameptr = Mod_LoadSpriteFrame (&sz, i);
 		else
-		{
-			pframetype = (dspriteframetype_t *)
-					Mod_LoadSpriteGroup (pframetype + 1, &psprite->frames[i].frameptr, i, frametype);
-		}
+			psprite->frames[i].frameptr = Mod_LoadSpriteGroup (&sz, i, frametype);
 	}
 
 	mod->type = mod_sprite;
