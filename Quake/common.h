@@ -223,6 +223,12 @@ static inline void ToggleBit (uint32_t *arr, uint32_t i)
 #define BigFloat(f)    SDL_SwapFloatBE((f))
 #define LittleFloat(f) SDL_SwapFloatLE((f))
 
+#define MakeLittleShort(b1,b2) \
+    (((uint32_t)(b2)<<8)|(uint32_t)(b1))
+
+#define MakeLittleLong(b1,b2,b3,b4) \
+    (((uint32_t)(b4)<<24)|((uint32_t)(b3)<<16)|((uint32_t)(b2)<<8)|(uint32_t)(b1))
+
 //============================================================================
 
 static inline uint16_t Q_RN16(const void *p)
