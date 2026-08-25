@@ -2848,20 +2848,35 @@ static int		posenum;
 
 /*
 =================
+Mod_LoadAliasVerts
+=================
+*/
+static void Mod_LoadAliasVerts (sizebuf_t *sz)
+{
+	trivertx_t *verts = SZ_ReadData(sz, sizeof(*verts) * pheader->numverts);
+	if (!verts)
+		Host_Error ("Mod_LoadAliasVerts: end of file");
+
+	if (posenum >= MAXALIASFRAMES)
+		Host_Error ("Mod_LoadAliasVerts: posenum >= MAXALIASFRAMES");
+	poseverts[posenum++] = verts;
+}
+
+/*
+=================
 Mod_LoadAliasFrame
 =================
 */
-static void *Mod_LoadAliasFrame (void * pin, maliasframedesc_t *frame)
+static void Mod_LoadAliasFrame (sizebuf_t *sz, maliasframedesc_t *frame)
 {
-	trivertx_t		*pinframe;
 	int				i;
 	daliasframe_t	*pdaliasframe;
 
-	if (posenum >= MAXALIASFRAMES)
-		Sys_Error ("posenum >= MAXALIASFRAMES");
+	pdaliasframe = SZ_ReadData(sz, sizeof(*pdaliasframe));
+	if (!pdaliasframe)
+		Host_Error ("Mod_LoadAliasFrame: end of file");
 
-	pdaliasframe = (daliasframe_t *)pin;
-
+	pdaliasframe->name[sizeof(pdaliasframe->name) - 1] = 0;
 	q_strlcpy (frame->name, pdaliasframe->name, sizeof (frame->name));
 	frame->firstpose = posenum;
 	frame->numposes = 1;
@@ -2874,14 +2889,7 @@ static void *Mod_LoadAliasFrame (void * pin, maliasframedesc_t *frame)
 		frame->bboxmax.v[i] = pdaliasframe->bboxmax.v[i];
 	}
 
-	pinframe = (trivertx_t *)(pdaliasframe + 1);
-
-	poseverts[posenum] = pinframe;
-	posenum++;
-
-	pinframe += pheader->numverts;
-
-	return (void *)pinframe;
+	Mod_LoadAliasVerts(sz);
 }
 
 
@@ -2890,16 +2898,18 @@ static void *Mod_LoadAliasFrame (void * pin, maliasframedesc_t *frame)
 Mod_LoadAliasGroup
 =================
 */
-static void *Mod_LoadAliasGroup (void * pin,  maliasframedesc_t *frame)
+static void Mod_LoadAliasGroup (sizebuf_t *sz, maliasframedesc_t *frame)
 {
 	daliasgroup_t		*pingroup;
 	int					i, numframes;
-	daliasinterval_t	*pin_intervals;
-	void				*ptemp;
 
-	pingroup = (daliasgroup_t *)pin;
+	pingroup = SZ_ReadData(sz, sizeof(*pingroup));
+	if (!pingroup)
+		Host_Error ("Mod_LoadAliasGroup: end of file");
 
 	numframes = LittleLong (pingroup->numframes);
+	if (numframes < 1 || numframes > MAXALIASFRAMES)
+		Host_Error ("Mod_LoadAliasGroup: Invalid # of frames: %d", numframes);
 
 	frame->firstpose = posenum;
 	frame->numposes = numframes;
@@ -2911,25 +2921,14 @@ static void *Mod_LoadAliasGroup (void * pin,  maliasframedesc_t *frame)
 		frame->bboxmax.v[i] = pingroup->bboxmax.v[i];
 	}
 
-	pin_intervals = (daliasinterval_t *)(pingroup + 1);
+	frame->interval = SZ_ReadFloat(sz);
+	for (i=1 ; i<numframes ; i++)
+		SZ_ReadFloat(sz); // unused ???
 
-	frame->interval = LittleFloat (pin_intervals->interval);
-
-	pin_intervals += numframes;
-
-	ptemp = (void *)pin_intervals;
-
-	for (i=0 ; i<numframes ; i++)
-	{
-		if (posenum >= MAXALIASFRAMES) Sys_Error ("posenum >= MAXALIASFRAMES");
-
-		poseverts[posenum] = (trivertx_t *)((daliasframe_t *)ptemp + 1);
-		posenum++;
-
-		ptemp = (trivertx_t *)((daliasframe_t *)ptemp + 1) + pheader->numverts;
+	for (i=0 ; i<numframes ; i++) {
+		SZ_ReadData(sz, sizeof(daliasframe_t));	// unused ???
+		Mod_LoadAliasVerts(sz);
 	}
-
-	return ptemp;
 }
 
 //=========================================================
@@ -3016,125 +3015,121 @@ static void Mod_FloodFillSkin( byte *skin, int skinwidth, int skinheight )
 Mod_LoadAllSkins
 ===============
 */
-static void *Mod_LoadAllSkins (int numskins, daliasskintype_t *pskintype)
+static void Mod_LoadAllSkins (sizebuf_t *sz)
 {
 	int			i, j, k, size, groupskins;
 	char			name[MAX_QPATH];
 	byte			*skin, *texels;
-	daliasskingroup_t	*pinskingroup;
-	daliasskininterval_t	*pinskinintervals;
 	char			fbr_mask_name[MAX_QPATH]; //johnfitz -- added for fullbright support
 	src_offset_t		offset; //johnfitz
 	unsigned int		texflags = TEXPREF_PAD;
-
-	skin = (byte *)(pskintype + 1);
-
-	if (numskins < 1 || numskins > MAX_SKINS)
-		Sys_Error ("Mod_LoadAliasModel: Invalid # of skins: %d", numskins);
 
 	size = pheader->skinwidth * pheader->skinheight;
 
 	if (loadmodel->flags & MF_HOLEY)
 		texflags |= TEXPREF_ALPHA | TEXPREF_UNCOMPRESSED;
 
-	for (i=0 ; i<numskins ; i++)
+	for (i=0 ; i<pheader->numskins ; i++)
 	{
-		if (pskintype->type == ALIAS_SKIN_SINGLE)
+		aliasskintype_t skintype = SZ_ReadLong(sz);
+		if (skintype == ALIAS_SKIN_SINGLE)
 		{
+			offset = sz->readcount;
+			skin = SZ_ReadData(sz, size);
+			if (!skin)
+				Host_Error ("Mod_LoadAllSkins: end of file");
+
 			Mod_FloodFillSkin( skin, pheader->skinwidth, pheader->skinheight );
 
 			// save 8 bit texels for the player model to remap
 			texels = (byte *) Hunk_AllocName(size, loadname);
 			pheader->texels[i] = texels - (byte *)pheader;
-			memcpy (texels, (byte *)(pskintype + 1), size);
+			memcpy (texels, skin, size);
 
 			//johnfitz -- rewritten
 			q_snprintf (name, sizeof(name), "%s:frame%i", loadmodel->name, i);
-			offset = (src_offset_t)(pskintype+1) - (src_offset_t)mod_base;
-			if (Mod_CheckFullbrights ((byte *)(pskintype+1), size))
+			if (Mod_CheckFullbrights (skin, size))
 			{
 				if (!(texflags & TEXPREF_ALPHA))
 				{
 					pheader->gltextures[i][0] = TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight,
-						SRC_INDEXED, (byte *)(pskintype+1), loadmodel->name, offset, texflags | TEXPREF_ALPHABRIGHT);
+						SRC_INDEXED, skin, loadmodel->name, offset, texflags | TEXPREF_ALPHABRIGHT);
 				}
 				else
 				{
 					pheader->gltextures[i][0] = TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight,
-						SRC_INDEXED, (byte *)(pskintype+1), loadmodel->name, offset, texflags | TEXPREF_NOBRIGHT);
+						SRC_INDEXED, skin, loadmodel->name, offset, texflags | TEXPREF_NOBRIGHT);
 					q_snprintf (fbr_mask_name, sizeof(fbr_mask_name), "%s:frame%i_glow", loadmodel->name, i);
 					pheader->fbtextures[i][0] = TexMgr_LoadImage (loadmodel, fbr_mask_name, pheader->skinwidth, pheader->skinheight,
-						SRC_INDEXED, (byte *)(pskintype+1), loadmodel->name, offset, texflags | TEXPREF_FULLBRIGHT);
+						SRC_INDEXED, skin, loadmodel->name, offset, texflags | TEXPREF_FULLBRIGHT);
 				}
 			}
 			else
 			{
 				pheader->gltextures[i][0] = TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight,
-					SRC_INDEXED, (byte *)(pskintype+1), loadmodel->name, offset, texflags);
+					SRC_INDEXED, skin, loadmodel->name, offset, texflags);
 				pheader->fbtextures[i][0] = NULL;
 			}
 
 			pheader->gltextures[i][3] = pheader->gltextures[i][2] = pheader->gltextures[i][1] = pheader->gltextures[i][0];
 			pheader->fbtextures[i][3] = pheader->fbtextures[i][2] = pheader->fbtextures[i][1] = pheader->fbtextures[i][0];
 			//johnfitz
-
-			pskintype = (daliasskintype_t *)((byte *)(pskintype+1) + size);
 		}
 		else
 		{
 			// animating skin group.  yuck.
-			pskintype++;
-			pinskingroup = (daliasskingroup_t *)pskintype;
-			groupskins = LittleLong (pinskingroup->numskins);
-			pinskinintervals = (daliasskininterval_t *)(pinskingroup + 1);
+			groupskins = SZ_ReadLong(sz);
+			if (groupskins < 1 || groupskins > MAX_SKINS)
+				Host_Error ("Mod_LoadAllSkins: Invalid # of groupskins: %d", groupskins);
 
-			pskintype = (daliasskintype_t *)(pinskinintervals + groupskins);
+			for (j=0 ; j<groupskins ; j++)
+				SZ_ReadFloat(sz); // skin interval. unused ???
 
 			for (j=0 ; j<groupskins ; j++)
 			{
+				offset = sz->readcount;
+				skin = SZ_ReadData(sz, size);
+				if (!skin)
+					Host_Error ("Mod_LoadAllSkins: end of file");
+
 				Mod_FloodFillSkin( skin, pheader->skinwidth, pheader->skinheight );
 				if (j == 0) {
 					texels = (byte *) Hunk_AllocName(size, loadname);
 					pheader->texels[i] = texels - (byte *)pheader;
-					memcpy (texels, (byte *)(pskintype), size);
+					memcpy (texels, skin, size);
 				}
 
 				//johnfitz -- rewritten
 				q_snprintf (name, sizeof(name), "%s:frame%i_%i", loadmodel->name, i,j);
-				offset = (src_offset_t)(pskintype) - (src_offset_t)mod_base; //johnfitz
-				if (Mod_CheckFullbrights ((byte *)(pskintype), size))
+				if (Mod_CheckFullbrights (skin, size))
 				{
 					if (!(texflags & TEXPREF_ALPHA))
 					{
 						pheader->gltextures[i][j&3] = TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight,
-							SRC_INDEXED, (byte *)(pskintype), loadmodel->name, offset, texflags | TEXPREF_ALPHABRIGHT);
+							SRC_INDEXED, skin, loadmodel->name, offset, texflags | TEXPREF_ALPHABRIGHT);
 					}
 					else
 					{
 						pheader->gltextures[i][j&3] = TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight,
-							SRC_INDEXED, (byte *)(pskintype), loadmodel->name, offset, texflags | TEXPREF_NOBRIGHT);
+							SRC_INDEXED, skin, loadmodel->name, offset, texflags | TEXPREF_NOBRIGHT);
 						q_snprintf (fbr_mask_name, sizeof(fbr_mask_name), "%s:frame%i_%i_glow", loadmodel->name, i,j);
 						pheader->fbtextures[i][j&3] = TexMgr_LoadImage (loadmodel, fbr_mask_name, pheader->skinwidth, pheader->skinheight,
-							SRC_INDEXED, (byte *)(pskintype), loadmodel->name, offset, texflags | TEXPREF_FULLBRIGHT);
+							SRC_INDEXED, skin, loadmodel->name, offset, texflags | TEXPREF_FULLBRIGHT);
 					}
 				}
 				else
 				{
 					pheader->gltextures[i][j&3] = TexMgr_LoadImage (loadmodel, name, pheader->skinwidth, pheader->skinheight,
-						SRC_INDEXED, (byte *)(pskintype), loadmodel->name, offset, texflags);
+						SRC_INDEXED, skin, loadmodel->name, offset, texflags);
 					pheader->fbtextures[i][j&3] = NULL;
 				}
 				//johnfitz
-
-				pskintype = (daliasskintype_t *)((byte *)(pskintype) + size);
 			}
 			k = j;
 			for (/**/; j < 4; j++)
 				pheader->gltextures[i][j&3] = pheader->gltextures[i][j - k];
 		}
 	}
-
-	return (void *)pskintype;
 }
 
 //=========================================================================
@@ -3398,25 +3393,25 @@ Mod_LoadAliasModel
 static void Mod_LoadAliasModel (qmodel_t *mod, void *buffer)
 {
 	char				path[MAX_QPATH];
-
+	sizebuf_t			sz;
 	int					i, j;
 	mdl_t				*pinmodel;
 	stvert_t			*pinstverts;
 	dtriangle_t			*pintriangles;
 	int					version, numframes;
-	int					size;
-	daliasframetype_t	*pframetype;
-	daliasskintype_t	*pskintype;
 	int					start, end, total;
 
 	start = Hunk_LowMark ();
 
-	pinmodel = (mdl_t *)buffer;
-	mod_base = (byte *)buffer; //johnfitz
+	SZ_InitRead(&sz, buffer, loadsize);
+
+	pinmodel = SZ_ReadData(&sz, sizeof(*pinmodel));
+	if (!pinmodel)
+		Host_Error ("Mod_LoadAliasModel: end of file");
 
 	version = LittleLong (pinmodel->version);
 	if (version != ALIAS_VERSION)
-		Sys_Error ("%s has wrong version number (%i should be %i)",
+		Host_Error ("%s has wrong version number (%i should be %i)",
 			mod->name, version, ALIAS_VERSION);
 	mod->flags = LittleLong (pinmodel->flags);
 
@@ -3458,17 +3453,26 @@ static void Mod_LoadAliasModel (qmodel_t *mod, void *buffer)
 // allocate space for a working header, plus all the data except the frames,
 // skin and group info
 //
-	size	= sizeof(aliashdr_t) +
-		 (LittleLong (pinmodel->numframes) - 1) * sizeof (pheader->frames[0]);
-	pheader = (aliashdr_t *) Hunk_AllocName (size, loadname);
+	numframes = LittleLong (pinmodel->numframes);
+	if (numframes < 1 || numframes > MAXALIASFRAMES)
+		Host_Error ("Mod_LoadAliasModel: Invalid # of frames: %d", numframes);
+
+	pheader = (aliashdr_t *) Hunk_AllocName (sizeof(aliashdr_t) +
+					(numframes - 1) * sizeof (pheader->frames[0]), loadname);
+	pheader->numframes = numframes;
 
 //
 // endian-adjust and copy the data, starting with the alias model header
 //
 	pheader->boundingradius = LittleFloat (pinmodel->boundingradius);
 	pheader->numskins = LittleLong (pinmodel->numskins);
+	if (pheader->numskins < 1 || pheader->numskins > MAX_SKINS)
+		Host_Error ("Mod_LoadAliasModel: Invalid # of skins: %d", pheader->numskins);
+
 	pheader->skinwidth = LittleLong (pinmodel->skinwidth);
 	pheader->skinheight = LittleLong (pinmodel->skinheight);
+	if (Image_CheckSize(pheader->skinwidth, pheader->skinheight))
+		Host_Error ("Mod_LoadAliasModel: bad skin size: %d x %d", pheader->skinwidth, pheader->skinheight);
 
 	if (pheader->skinheight > MAX_LBM_HEIGHT)
 		Con_DWarning ("model %s has a skin taller than %d", mod->name,
@@ -3477,23 +3481,20 @@ static void Mod_LoadAliasModel (qmodel_t *mod, void *buffer)
 	pheader->numverts = LittleLong (pinmodel->numverts);
 
 	if (pheader->numverts <= 0)
-		Sys_Error ("model %s has no vertices", mod->name);
+		Host_Error ("model %s has no vertices", mod->name);
 	else if (pheader->numverts > MAXALIASVERTS)
-		Sys_Error ("model %s has too many vertices (%d; max = %d)", mod->name, pheader->numverts, MAXALIASVERTS);
+		Host_Error ("model %s has too many vertices (%d; max = %d)", mod->name, pheader->numverts, MAXALIASVERTS);
 	else if (pheader->numverts > MAXALIASVERTS_QS && (developer.value || map_checks.value))
 		Con_Warning ("model %s vertex count of %d exceeds QS limit of %d\n", mod->name, pheader->numverts, MAXALIASVERTS_QS);
 
 	pheader->numtris = LittleLong (pinmodel->numtris);
 
 	if (pheader->numtris <= 0)
-		Sys_Error ("model %s has no triangles", mod->name);
+		Host_Error ("model %s has no triangles", mod->name);
+	else if (pheader->numtris > MAXALIASTRIS)
+		Host_Error ("model %s has too many triangles (%d; max = %d)", mod->name, pheader->numtris, MAXALIASTRIS);
 	else if (pheader->numtris > MAXALIASTRIS_QS && (developer.value || map_checks.value))
 		Con_Warning ("model %s triangle count of %d exceeds QS limit of %d\n", mod->name, pheader->numtris, MAXALIASTRIS_QS);
-
-	pheader->numframes = LittleLong (pinmodel->numframes);
-	numframes = pheader->numframes;
-	if (numframes < 1)
-		Sys_Error ("Mod_LoadAliasModel: Invalid # of frames: %d", numframes);
 
 	pheader->size = LittleFloat (pinmodel->size) * ALIAS_BASE_SIZE_RATIO;
 	mod->synctype = (synctype_t) LittleLong (pinmodel->synctype);
@@ -3509,13 +3510,14 @@ static void Mod_LoadAliasModel (qmodel_t *mod, void *buffer)
 //
 // load the skins
 //
-	pskintype = (daliasskintype_t *)&pinmodel[1];
-	pskintype = (daliasskintype_t *) Mod_LoadAllSkins (pheader->numskins, pskintype);
+	Mod_LoadAllSkins (&sz);
 
 //
 // endian-swap base s and t vertices in place
 //
-	pinstverts = (stvert_t *)pskintype;
+	pinstverts = SZ_ReadData(&sz, sizeof(*pinstverts) * pheader->numverts);
+	if (!pinstverts)
+		Host_Error ("Mod_LoadAliasModel: end of file");
 	stverts = pinstverts;
 
 	for (i=0 ; i<pheader->numverts ; i++)
@@ -3528,7 +3530,9 @@ static void Mod_LoadAliasModel (qmodel_t *mod, void *buffer)
 //
 // endian-swap triangle lists in place
 //
-	pintriangles = (dtriangle_t *)&pinstverts[pheader->numverts];
+	pintriangles = SZ_ReadData(&sz, sizeof(*pintriangles) * pheader->numtris);
+	if (!pintriangles)
+		Host_Error ("Mod_LoadAliasModel: end of file");
 	triangles = pintriangles;
 
 	for (i=0 ; i<pheader->numtris ; i++)
@@ -3546,16 +3550,14 @@ static void Mod_LoadAliasModel (qmodel_t *mod, void *buffer)
 // load the frames
 //
 	posenum = 0;
-	pframetype = (daliasframetype_t *)&pintriangles[pheader->numtris];
 
 	for (i=0 ; i<numframes ; i++)
 	{
-		aliasframetype_t	frametype;
-		frametype = (aliasframetype_t) LittleLong (pframetype->type);
+		aliasframetype_t frametype = SZ_ReadLong(&sz);
 		if (frametype == ALIAS_SINGLE)
-			pframetype = (daliasframetype_t *) Mod_LoadAliasFrame (pframetype + 1, &pheader->frames[i]);
+			Mod_LoadAliasFrame (&sz, &pheader->frames[i]);
 		else
-			pframetype = (daliasframetype_t *) Mod_LoadAliasGroup (pframetype + 1, &pheader->frames[i]);
+			Mod_LoadAliasGroup (&sz, &pheader->frames[i]);
 	}
 
 	pheader->numposes = posenum;
