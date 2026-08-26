@@ -352,6 +352,12 @@ typedef struct {
 
 static inline aliashdr_t *Mod_NextSurface (aliashdr_t *hdr) { return hdr->nextsurface ? (aliashdr_t*)((byte*)hdr + hdr->nextsurface) : NULL; }
 
+#define MD5_MAX_JOINTS      256
+#define MD5_MAX_MESHES      32
+#define MD5_MAX_VERTS		65536
+#define MD5_MAX_WEIGHTS     65536
+#define MD5_MAX_TRIS        65536
+
 typedef struct
 {
 	float		xyz[3];

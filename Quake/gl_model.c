@@ -3859,7 +3859,7 @@ static double MD5_ParseFloat(const char **buffer)
 typedef struct
 {
 	size_t firstweight;
-	unsigned int count;
+	size_t count;
 } md5vertinfo_t;
 typedef struct
 {
@@ -4127,8 +4127,10 @@ static qboolean MD5Anim_Begin(md5animctx_t *ctx, const char *fname)
 		MD5EXPECT("numJoints");	ctx->numjoints = MD5UINT();
 		MD5EXPECT("frameRate"); /*irrelevant here*/
 
-		if (ctx->numposes <= 0)
-			MD5ERROR ("%s has no poses\n", fname);
+		if (ctx->numposes <= 0 || ctx->numposes > MAXALIASFRAMES)
+			MD5ERROR ("%s has invalid number of poses (%d, max=%d)\n", fname, (int)ctx->numposes, MAXALIASFRAMES);
+		if (ctx->numjoints <= 0 || ctx->numjoints > MD5_MAX_JOINTS)
+			MD5ERROR ("%s has invalid number of bones (%d, max=%d)\n", fname, (int)ctx->numjoints, MD5_MAX_JOINTS);
 
 		ctx->buffer = buffer;
 	}
@@ -4156,6 +4158,8 @@ static qboolean MD5Anim_Load(md5animctx_t *ctx, boneinfo_t *bones, size_t numbon
 	}
 
 	MD5EXPECT("numAnimatedComponents");	rawcount = MD5UINT();
+	if (rawcount > MD5_MAX_JOINTS * 6)
+		MD5ERROR ("%s has too many animated components (%d, max=%d)\n", fname, (int)rawcount, MD5_MAX_JOINTS * 6);
 
 	if (ctx->numjoints != numbones)
 		MD5ERROR ("%s has incorrect bone count (expected %d, found %d)\n", fname, (int)numbones, (int)ctx->numjoints);
@@ -4184,7 +4188,7 @@ static qboolean MD5Anim_Load(md5animctx_t *ctx, boneinfo_t *bones, size_t numbon
 		if (ab[j].flags & ~63)
 			MD5ERROR ("%s: bone %s has unsupported flags\n", fname, bones[j].name);
 		ab[j].offset = MD5UINT();
-		if (ab[j].offset > rawcount+6)
+		if (ab[j].offset > rawcount)
 			MD5ERROR ("%s: bone %s has bad offset\n", fname, bones[j].name);
 	}
 	MD5EXPECT("}");
@@ -4368,7 +4372,7 @@ static qboolean Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer)
 	size_t				nummeshes = 0, m;
 	md5vertinfo_t		*vinfo = NULL;
 	md5weightinfo_t		*weight = NULL;
-	size_t				numweights;
+	size_t				numverts, numtris, numweights;
 
 	md5animctx_t		anim = {NULL};
 	char				*shaders = NULL, *s;
@@ -4383,10 +4387,10 @@ static qboolean Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer)
 	MD5EXPECT("numJoints");	numjoints = MD5UINT();
 	MD5EXPECT("numMeshes");	nummeshes = MD5UINT();
 
-	if (numjoints <= 0)
-		MD5ERROR ("%s has no bones\n", mod->name);
-	if (nummeshes <= 0)
-		MD5ERROR ("%s has no meshes\n", mod->name);
+	if (numjoints <= 0 || numjoints > MD5_MAX_JOINTS)
+		MD5ERROR ("%s has invalid number of bones (%d, max=%d)\n", mod->name, (int)numjoints, MD5_MAX_JOINTS);
+	if (nummeshes <= 0 || nummeshes > MD5_MAX_MESHES)
+		MD5ERROR ("%s has invalid number of meshes (%d, max=%d)\n", mod->name, (int)nummeshes, MD5_MAX_MESHES);
 
 	if (strcmp(com_token, "joints")) MD5ERROR ("Mod_LoadMD5MeshModel(%s): Expected \"%s\"\n", fname, "joints");
 	if (!MD5Anim_Begin(&anim, fname))
@@ -4477,39 +4481,47 @@ static qboolean Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer)
 
 		buffer = COM_Parse(buffer);
 		MD5EXPECT("numverts");
-		surf->numverts_vbo = surf->numverts = MD5UINT();
+		numverts = MD5UINT();
+		if (numverts > MD5_MAX_VERTS)
+			MD5ERROR ("%s has too many verts (%d, max=%d)\n", fname, (int)numverts, MD5_MAX_VERTS);
+		surf->numverts_vbo = surf->numverts = numverts;
 
-		vinfo = (md5vertinfo_t *) Z_Malloc(sizeof(*vinfo)*surf->numverts);
-		poutvert = (iqmvert_t *) Hunk_Alloc(sizeof(*poutvert)*surf->numverts);
+		vinfo = (md5vertinfo_t *) Z_Malloc(sizeof(*vinfo)*numverts);
+		poutvert = (iqmvert_t *) Hunk_Alloc(sizeof(*poutvert)*numverts);
 		surf->vertexes = (byte*)poutvert-(byte*)surf;
 		while (MD5CHECK("vert"))
 		{
 			size_t idx = MD5UINT();
-			if (idx >= (size_t)surf->numverts)
-				MD5ERROR ("%s: vertex index %d out of bounds (max=%d)\n", fname, (int)idx, surf->numverts);
+			if (idx >= numverts)
+				MD5ERROR ("%s: vertex index %d out of bounds (max=%d)\n", fname, (int)idx, (int)numverts);
 			MD5EXPECT("(");
 			poutvert[idx].st[0] = MD5FLOAT();
 			poutvert[idx].st[1] = MD5FLOAT();
 			MD5EXPECT(")");
 			vinfo[idx].firstweight = MD5UINT();
 			vinfo[idx].count = MD5UINT();
+			if (vinfo[idx].firstweight > MD5_MAX_WEIGHTS || vinfo[idx].count > MD5_MAX_WEIGHTS)
+				MD5ERROR ("%s: weight index out of bounds\n", fname);
 		}
 		MD5EXPECT("numtris");
-		surf->numtris = MD5UINT();
-		surf->numindexes = surf->numtris*3;
+		numtris = MD5UINT();
+		if (numtris > MD5_MAX_TRIS)
+			MD5ERROR ("%s has too many tris (%d, max=%d)\n", fname, (int)numtris, MD5_MAX_TRIS);
+		surf->numtris = numtris;
+		surf->numindexes = numtris*3;
 		poutindexes = (unsigned short *) Hunk_Alloc(sizeof(*poutindexes)*surf->numindexes);
 		surf->indexes = (byte*)poutindexes-(byte*)surf;
 		while (MD5CHECK("tri"))
 		{
 			size_t idx = MD5UINT();
-			if (idx >= (size_t)surf->numtris)
-				MD5ERROR ("%s: triangle index %d out of bounds (max=%d)\n", fname, (int)idx, surf->numtris);
+			if (idx >= numtris)
+				MD5ERROR ("%s: triangle index %d out of bounds (max=%d)\n", fname, (int)idx, (int)numtris);
 			idx *= 3;
 			for (j = 0; j < 3; j++)
 			{
 				size_t t = MD5UINT();
-				if (t >= (size_t)surf->numverts)
-					MD5ERROR ("%s: vertex index %d out of bounds (max=%d)\n", fname, (int)t, surf->numverts);
+				if (t >= numverts)
+					MD5ERROR ("%s: vertex index %d out of bounds (max=%d)\n", fname, (int)t, (int)numverts);
 				poutindexes[idx+j] = t;
 			}
 		}
@@ -4517,6 +4529,8 @@ static qboolean Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer)
 		//md5 is a gpu-unfriendly interchange format. :(
 		MD5EXPECT("numweights");
 		numweights = MD5UINT();
+		if (numweights > MD5_MAX_WEIGHTS)
+			MD5ERROR ("%s has too many weights (%d, max=%d)\n", fname, (int)numweights, MD5_MAX_WEIGHTS);
 		weight = (md5weightinfo_t *) Z_Malloc(sizeof(*weight)*numweights);
 		while (MD5CHECK("weight"))
 		{
