@@ -32,7 +32,7 @@ static char	loadname[32];	// for hunk tags
 static void Mod_LoadSpriteModel (qmodel_t *mod, void *buffer);
 static void Mod_LoadBrushModel (qmodel_t *mod, void *buffer);
 static void Mod_LoadAliasModel (qmodel_t *mod, void *buffer);
-static void Mod_LoadMD3Model (qmodel_t* mod, const char* buffer);
+//static void Mod_LoadMD3Model (qmodel_t* mod, const char* buffer);
 static qboolean Mod_LoadMD5MeshModel (qmodel_t *mod, const char *buffer);
 static qmodel_t *Mod_LoadModel (qmodel_t *mod, qboolean crash);
 
@@ -3332,6 +3332,7 @@ qboolean loadMd5Replacement(qmodel_t* mod, char	*path)
 	return false;
 }
 
+#if 0
 qboolean loadMd3Replacement (qmodel_t* mod, char *path)
 {
 
@@ -3351,6 +3352,7 @@ qboolean loadMd3Replacement (qmodel_t* mod, char *path)
 	}
 	return false;
 }
+#endif
 
 // helpers to make model loading more extensible
 typedef qboolean (*ModelLoadFunc)(qmodel_t* mod, const char* path);
@@ -3418,7 +3420,7 @@ static void Mod_LoadAliasModel (qmodel_t *mod, void *buffer)
 	if ((int)r_enhancedmodels.value == 1) 
 	{
 		ModelLoader loaders[] = {
-			{ "md3", (ModelLoadFunc)loadMd3Replacement},
+			//{ "md3", (ModelLoadFunc)loadMd3Replacement},
 			{ "md5", (ModelLoadFunc)loadMd5Replacement}
 
 			/* * TO ADD A NEW TYPE, JUST ADD A LINE HERE:
@@ -4601,6 +4603,7 @@ error:
 // == MD3 Model Loader Helpers ===========================================
 // =======================================================================
 
+#if 0
 
 // Helper function to check if a name already exists in a list.
 static qboolean NameInList (const char* name, char** list, int list_count) {
@@ -5267,3 +5270,5 @@ static void Mod_LoadMD3Model (qmodel_t* mod, const char* buffer)
 	memcpy (mod->cache.data, mainhdr, total);
 	Hunk_FreeToLowMark (start);
 }
+
+#endif
