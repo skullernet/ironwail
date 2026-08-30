@@ -277,6 +277,9 @@ static inline uint32_t FloatAsLong(float f)
 #define Q_WL32(p, v)	Q_WN32(p, SDL_SwapLE32(v))
 #define Q_WL32F(p, v)	Q_WL32(p, FloatAsLong(v))
 
+#define Q_RB32(p)	SDL_SwapBE32(Q_RN32(p))
+#define Q_WB32(p, v)	Q_WN32(p, SDL_SwapBE32(v))
+
 //============================================================================
 
 void MSG_WriteChar (sizebuf_t *sb, int c);
