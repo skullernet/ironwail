@@ -438,7 +438,7 @@ void CL_SendMove (const usercmd_t *cmd)
 //
 // deliver the message
 //
-	if (cls.demoplayback)
+	if (cls.demoplayback || !buf.cursize)
 		return;
 
 //

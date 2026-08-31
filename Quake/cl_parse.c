@@ -263,6 +263,9 @@ void CL_KeepaliveMessage (void)
 	net_message = old;
 	memcpy (net_message.data, olddata, net_message.cursize);
 
+	if (!NET_CanSendMessage (cls.netcon))
+		return;
+
 // check time
 	time = Sys_DoubleTime ();
 	if (time - lastmsg < 5)

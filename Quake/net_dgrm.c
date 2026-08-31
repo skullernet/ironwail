@@ -877,6 +877,7 @@ static qsocket_t *_Datagram_CheckNewConnections (void)
 {
 	struct qsockaddr clientaddr;
 	struct qsockaddr newaddr;
+	struct qsockaddr myaddr;
 	sys_socket_t		newsock;
 	sys_socket_t		acceptsock;
 	qsocket_t	*sock;
@@ -910,6 +911,11 @@ static qsocket_t *_Datagram_CheckNewConnections (void)
 	command = MSG_ReadByte();
 	if (command == CCREQ_SERVER_INFO)
 	{
+		// don't answer our own query
+		dfunc.GetSocketAddr(dfunc.controlSock, &myaddr);
+		if (dfunc.AddrCompare(&clientaddr, &myaddr) == 0)
+			return NULL;
+
 		if (Q_strcmp(MSG_ReadString(), "QUAKE") != 0)
 			return NULL;
 
@@ -1140,10 +1146,8 @@ static void _Datagram_SearchForHosts (qboolean xmit)
 	int		n;
 	int		i;
 	struct qsockaddr readaddr;
-	struct qsockaddr myaddr;
 	int		control;
 
-	dfunc.GetSocketAddr (dfunc.controlSock, &myaddr);
 	if (xmit)
 	{
 		SZ_Clear(&net_message);
@@ -1162,10 +1166,6 @@ static void _Datagram_SearchForHosts (qboolean xmit)
 		if (ret < (int) sizeof(int))
 			continue;
 		net_message.cursize = ret;
-
-		// don't answer our own query
-		if (dfunc.AddrCompare(&readaddr, &myaddr) >= 0)
-			continue;
 
 		// is the cache full?
 		if (hostCacheCount == HOSTCACHESIZE)

@@ -263,9 +263,6 @@ int UDP_Connect (sys_socket_t socketid, struct qsockaddr *addr)
 sys_socket_t UDP_CheckNewConnections (void)
 {
 	int		available;
-	struct sockaddr_in	from;
-	socklen_t	fromlen;
-	char		buff[1];
 
 	if (net_acceptsocket == INVALID_SOCKET)
 		return INVALID_SOCKET;
@@ -277,8 +274,6 @@ sys_socket_t UDP_CheckNewConnections (void)
 	}
 	if (available)
 		return net_acceptsocket;
-	// quietly absorb empty packets
-	recvfrom (net_acceptsocket, buff, 0, 0, (struct sockaddr *) &from, &fromlen);
 	return INVALID_SOCKET;
 }
 
