@@ -466,9 +466,8 @@ static qboolean VID_SetMode (int width, int height, int refreshrate, qboolean fu
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, MIN_GL_VERSION_MAJOR);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, MIN_GL_VERSION_MINOR);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-#ifndef NDEBUG
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
-#endif
+		if (COM_CheckParm("-gldebug"))
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
 		draw_context = SDL_CreateWindow (caption, SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height, flags);
 		if (!draw_context) { // scale back SDL_GL_DEPTH_SIZE
 			SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 16);
@@ -1019,9 +1018,7 @@ static void GL_CheckExtensions (void)
 	if (COM_CheckParm ("-glmarkers"))
 		glmarkers = true;
 
-#ifdef NDEBUG
 	if (COM_CheckParm("-gldebug"))
-#endif
 	{
 		glmarkers = true;
 		GL_DebugMessageCallbackFunc (&GL_DebugCallback, NULL);
