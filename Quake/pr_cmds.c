@@ -24,7 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "q_ctype.h"
 
-#define	STRINGTEMP_BUFFERS		1024
+#define	STRINGTEMP_BUFFERS		256
 #define	STRINGTEMP_LENGTH		1024
 static	char	pr_string_temp[STRINGTEMP_BUFFERS][STRINGTEMP_LENGTH];
 static	byte	pr_string_tempindex = 0;
